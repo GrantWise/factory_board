@@ -1,0 +1,1 @@
+This folder will contain the Node.js/Express backend API.
