@@ -72,15 +72,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (username: string, password: string): Promise<void> => {
     try {
       const response = await authService.login(username, password);
+      
+      // Validate response structure
+      if (!response || !response.user) {
+        throw new Error('Invalid response from server');
+      }
+      
       setUser(response.user);
       
       // Store refresh token in localStorage
       if (response.refreshToken) {
         localStorage.setItem('refresh_token', response.refreshToken);
       }
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('Login failed:', {
+        message: error?.message || 'Unknown error',
+        error: error?.error || 'No error details',
+        status: error?.status || 'No status',
+        code: error?.code || 'No code'
+      });
+      
+      // Re-throw with better error structure
+      const errorToThrow = {
+        error: error?.error || error?.message || 'Login failed',
+        code: error?.code || 'LOGIN_FAILED',
+        status: error?.status || 500
+      };
+      
+      throw errorToThrow;
     }
   };
 

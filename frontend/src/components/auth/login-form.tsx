@@ -20,13 +20,48 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  /**
+   * Validates and sanitizes login form inputs before submission
+   * @param e - Form submission event
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
+    // Client-side validation
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    // Validate required fields
+    if (!trimmedUsername) {
+      setError('Username is required');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setError('Password is required');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate username format (alphanumeric and common special chars)
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmedUsername)) {
+      setError('Username contains invalid characters');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate minimum password length
+    if (trimmedPassword.length < 3) {
+      setError('Password must be at least 3 characters long');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      await login(username, password);
+      await login(trimmedUsername, trimmedPassword);
       onSuccess?.();
     } catch (err: any) {
       setError(err.error || 'Login failed. Please check your credentials.');
@@ -63,9 +98,11 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 type="text"
                 placeholder="Enter your username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value.trim())}
                 required
                 disabled={isLoading}
+                maxLength={50}
+                autoComplete="username"
               />
             </div>
             
@@ -79,6 +116,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                autoComplete="current-password"
               />
             </div>
             

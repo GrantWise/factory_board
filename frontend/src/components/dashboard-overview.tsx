@@ -1,14 +1,41 @@
 "use client"
 
+/**
+ * DashboardOverview - Manufacturing dashboard homepage
+ * 
+ * Provides a high-level overview of manufacturing operations including
+ * key metrics, recent activity feed, and quick action buttons. Serves as
+ * the landing page for the manufacturing system.
+ * 
+ * Features:
+ * - Key performance metrics display via AnalyticsCards
+ * - Recent activity timeline showing order movements and completions
+ * - Quick action buttons for common operations
+ * - Quick stats panel with real-time calculations
+ * 
+ * Navigation:
+ * - "Add New Order" button navigates to orders page
+ * - "View Planning Board" button opens planning interface
+ * - Integrates with parent navigation system
+ * 
+ * Data Processing:
+ * - Calculates real-time statistics from order data
+ * - Formats recent activity from order status changes
+ * - Displays completion percentages and progress metrics
+ */
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AnalyticsCards } from "./analytics-cards"
+import { AnalyticsCards } from "@/components/analytics-cards"
 import { Plus, Eye, Activity, Clock } from "lucide-react"
 import type { DashboardMetrics, LegacyManufacturingOrder } from "@/types/manufacturing"
 
 interface DashboardOverviewProps {
+  /** Calculated dashboard metrics from data adapters */
   metrics: DashboardMetrics
+  /** Recent manufacturing orders for activity display */
   recentOrders: LegacyManufacturingOrder[]
+  /** Navigation callback for page routing */
   onNavigate?: (page: string) => void
 }
 

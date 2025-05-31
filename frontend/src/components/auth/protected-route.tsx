@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { LoginForm } from './login-form';
+import { LoginForm } from '@/components/auth/login-form';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -47,7 +47,7 @@ export function ProtectedRoute({
               Access Denied
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              You don't have permission to access this page.
+              You don&apos;t have permission to access this page.
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
               Required role: {Array.isArray(requiredRole) ? requiredRole.join(' or ') : requiredRole}
@@ -71,7 +71,7 @@ export function ProtectedRoute({
               Access Denied
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              You don't have permission to perform this action.
+              You don&apos;t have permission to perform this action.
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
               Required permission: {requiredPermission}

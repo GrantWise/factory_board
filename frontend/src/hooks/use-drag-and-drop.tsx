@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useWebSocket } from "./use-websocket"
-import { useNotifications } from "./use-notifications"
+import { useWebSocket } from "@/hooks/use-websocket"
+import { useNotifications } from "@/hooks/use-notifications"
 import type { ManufacturingOrder } from "@/types/manufacturing"
 import { DragStartEvent, DragEndEvent, DragOverEvent } from "@dnd-kit/core"
 

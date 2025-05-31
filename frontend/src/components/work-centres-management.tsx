@@ -1,5 +1,32 @@
 "use client"
 
+/**
+ * WorkCentresManagement - Complete work centre administration interface
+ * 
+ * Provides comprehensive management of manufacturing work centres including
+ * creation, editing, deletion, and status management. Features drag-and-drop
+ * reordering with automatic backend synchronization.
+ * 
+ * Core Features:
+ * - Create new work centres with capacity and machine assignments
+ * - Edit existing work centre properties (name, capacity, machines, status)
+ * - Delete work centres with confirmation dialogs
+ * - Toggle active/inactive status for work centres
+ * - Drag-and-drop reordering with visual feedback
+ * 
+ * Data Management:
+ * - Converts between legacy string IDs and numeric API IDs
+ * - Validates input before API calls
+ * - Provides detailed error handling and user feedback
+ * - Triggers data refresh after modifications
+ * 
+ * UI/UX:
+ * - Card-based layout with hover effects
+ * - Visual drag indicators and feedback
+ * - Status badges and action buttons
+ * - Modal dialogs for create/edit operations
+ */
+
 import type React from "react"
 
 import { useState } from "react"
@@ -17,14 +44,19 @@ import { workCentresService } from "@/lib/api-services"
 import { toast } from "sonner"
 
 interface WorkCentresManagementProps {
+  /** Work centres in legacy format for display */
   workCentres: LegacyWorkCentre[]
+  /** Original API work centres data for ID mapping */
   originalWorkCentres?: WorkCentre[]
+  /** Callback triggered after work centre modifications to refresh data */
   onWorkCentreUpdate?: (workCentres: LegacyWorkCentre[]) => void
 }
 
-// Helper to find the numeric ID from code for API calls
-// This requires access to the original work centres data from the API
-// We'll pass this down or access it through a context/prop
+/**
+ * Helper functions for managing work centre data transformations
+ * Maps between legacy string-based IDs and numeric API IDs
+ * Required because UI uses legacy format while API expects numeric IDs
+ */
 
 export function WorkCentresManagement({ workCentres, originalWorkCentres, onWorkCentreUpdate }: WorkCentresManagementProps) {
   const [centres, setCentres] = useState<LegacyWorkCentre[]>(workCentres)
@@ -32,7 +64,11 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
   const [editingCentre, setEditingCentre] = useState<LegacyWorkCentre | null>(null)
   const [draggedCentre, setDraggedCentre] = useState<string | null>(null)
 
-  // Helper function to find numeric ID from legacy code ID
+  /**
+   * Maps legacy work centre code ID to numeric API ID
+   * @param codeId - Legacy string-based work centre ID
+   * @returns Numeric ID for API calls or null if not found
+   */
   const findNumericId = (codeId: string): number | null => {
     if (!originalWorkCentres) return null
     const workCentre = originalWorkCentres.find(wc => wc.code === codeId)
@@ -46,16 +82,66 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     status: "active" as "active" | "inactive",
   })
 
+  /**
+   * Creates a new work centre via API
+   * Validates input and generates unique code before creation
+   */
   const handleAddCentre = async () => {
     try {
-      if (!newCentre.name.trim()) {
+      // Comprehensive input validation
+      const trimmedName = newCentre.name.trim();
+      
+      if (!trimmedName) {
         toast.error('Work centre name is required')
         return
       }
 
+      if (trimmedName.length < 2) {
+        toast.error('Work centre name must be at least 2 characters long')
+        return
+      }
+
+      if (trimmedName.length > 50) {
+        toast.error('Work centre name must be less than 50 characters')
+        return
+      }
+
+      // Validate name contains only allowed characters
+      if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmedName)) {
+        toast.error('Work centre name contains invalid characters. Use only letters, numbers, spaces, hyphens, and underscores.')
+        return
+      }
+
+      // Check for duplicate names
+      if (centres.some(centre => centre.name.toLowerCase() === trimmedName.toLowerCase())) {
+        toast.error('A work centre with this name already exists')
+        return
+      }
+
+      // Validate capacity
+      if (newCentre.capacity < 1) {
+        toast.error('Capacity must be at least 1')
+        return
+      }
+
+      if (newCentre.capacity > 100) {
+        toast.error('Capacity cannot exceed 100 jobs')
+        return
+      }
+
+      // Validate machines input if provided
+      const machinesInput = newCentre.machines.trim();
+      if (machinesInput) {
+        const machines = machinesInput.split(',').map(m => m.trim()).filter(m => m);
+        if (machines.some(machine => !/^[a-zA-Z0-9\-_]+$/.test(machine))) {
+          toast.error('Machine names contain invalid characters. Use only letters, numbers, hyphens, and underscores.')
+          return
+        }
+      }
+
       const workCentreData = {
-        name: newCentre.name.trim(),
-        code: `WC-${newCentre.name.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        name: trimmedName,
+        code: `WC-${trimmedName.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
         capacity: newCentre.capacity,
         display_order: centres.length + 1,
       }
@@ -75,6 +161,10 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     }
   }
 
+  /**
+   * Initiates work centre editing by populating form with current values
+   * @param centre - Work centre to edit
+   */
   const handleEditCentre = (centre: LegacyWorkCentre) => {
     setEditingCentre(centre)
     setNewCentre({
@@ -85,13 +175,63 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     })
   }
 
+  /**
+   * Updates existing work centre via API
+   * Validates input and maps legacy ID to numeric ID for API call
+   */
   const handleUpdateCentre = async () => {
     if (!editingCentre) return
 
     try {
-      if (!newCentre.name.trim()) {
+      // Comprehensive input validation
+      const trimmedName = newCentre.name.trim();
+      
+      if (!trimmedName) {
         toast.error('Work centre name is required')
         return
+      }
+
+      if (trimmedName.length < 2) {
+        toast.error('Work centre name must be at least 2 characters long')
+        return
+      }
+
+      if (trimmedName.length > 50) {
+        toast.error('Work centre name must be less than 50 characters')
+        return
+      }
+
+      // Validate name contains only allowed characters
+      if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmedName)) {
+        toast.error('Work centre name contains invalid characters. Use only letters, numbers, spaces, hyphens, and underscores.')
+        return
+      }
+
+      // Check for duplicate names (excluding current centre)
+      if (centres.some(centre => centre.id !== editingCentre.id && centre.name.toLowerCase() === trimmedName.toLowerCase())) {
+        toast.error('A work centre with this name already exists')
+        return
+      }
+
+      // Validate capacity
+      if (newCentre.capacity < 1) {
+        toast.error('Capacity must be at least 1')
+        return
+      }
+
+      if (newCentre.capacity > 100) {
+        toast.error('Capacity cannot exceed 100 jobs')
+        return
+      }
+
+      // Validate machines input if provided
+      const machinesInput = newCentre.machines.trim();
+      if (machinesInput) {
+        const machines = machinesInput.split(',').map(m => m.trim()).filter(m => m);
+        if (machines.some(machine => !/^[a-zA-Z0-9\-_]+$/.test(machine))) {
+          toast.error('Machine names contain invalid characters. Use only letters, numbers, hyphens, and underscores.')
+          return
+        }
       }
 
       // Find the numeric ID for the API call
@@ -103,7 +243,7 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
       }
 
       const updates = {
-        name: newCentre.name.trim(),
+        name: trimmedName,
         capacity: newCentre.capacity,
         is_active: newCentre.status === 'active' ? 1 : 0,
       }
@@ -119,6 +259,10 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     }
   }
 
+  /**
+   * Deletes work centre after user confirmation
+   * @param centreId - Legacy work centre ID to delete
+   */
   const handleDeleteCentre = async (centreId: string) => {
     try {
       if (!confirm('Are you sure you want to delete this work centre? This action cannot be undone.')) {
@@ -142,6 +286,10 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     }
   }
 
+  /**
+   * Toggles work centre active/inactive status
+   * @param centreId - Legacy work centre ID to toggle
+   */
   const handleToggleStatus = async (centreId: string) => {
     try {
       // Find the work centre to toggle
@@ -174,6 +322,11 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     }
   }
 
+  /**
+   * Initiates drag operation for work centre reordering
+   * @param e - Drag event
+   * @param centreId - ID of work centre being dragged
+   */
   const handleDragStart = (e: React.DragEvent, centreId: string) => {
     setDraggedCentre(centreId)
     e.dataTransfer.setData("text/plain", centreId)
@@ -183,6 +336,12 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     e.preventDefault()
   }
 
+  /**
+   * Handles drop operation for work centre reordering
+   * Updates order values and triggers callback for persistence
+   * @param e - Drop event
+   * @param targetCentreId - ID of drop target work centre
+   */
   const handleDrop = (e: React.DragEvent, targetCentreId: string) => {
     e.preventDefault()
     const draggedCentreId = e.dataTransfer.getData("text/plain")
@@ -235,6 +394,8 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
                   value={newCentre.name}
                   onChange={(e) => setNewCentre({ ...newCentre, name: e.target.value })}
                   placeholder="e.g., Cutting, Assembly"
+                  maxLength={50}
+                  required
                 />
               </div>
               <div>

@@ -1,17 +1,41 @@
 "use client"
 
+/**
+ * PlanningBoard - Interactive drag-and-drop manufacturing planning interface
+ * 
+ * Provides a visual kanban-style board for managing manufacturing orders across
+ * work centres. Supports real-time collaboration with WebSocket integration,
+ * drag-and-drop order movement, and work centre configuration.
+ * 
+ * Key Features:
+ * - Drag-and-drop order movement between work centres
+ * - Real-time locking to prevent conflicts during order moves
+ * - Work centre column reordering with backend persistence
+ * - Live user presence indicators
+ * - Responsive grid layout for different screen sizes
+ * 
+ * Real-time Collaboration:
+ * - Orders are locked when being moved by users
+ * - Visual indicators show which user is moving an order
+ * - WebSocket connection displays online users
+ * 
+ * Data Flow:
+ * - Receives legacy format data from parent Dashboard component
+ * - Converts legacy IDs to numeric IDs for API calls
+ * - Updates are pushed to backend and trigger data refresh
+ */
+
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Settings, Plus, GripVertical } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { OrderCard } from "./order-card"
-import { OnlineUsersIndicator } from "./online-users-indicator"
+import { OrderCard } from "@/components/order-card"
+import { OnlineUsersIndicator } from "@/components/online-users-indicator"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { useDragAndDrop } from "@/hooks/use-drag-and-drop"
-import { useNotifications } from "@/hooks/use-notifications"
 import { workCentresService } from "@/lib/api-services"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
@@ -25,7 +49,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragStartEvent,
   DragEndEvent,
   DragOverEvent,
 } from "@dnd-kit/core"
@@ -41,11 +64,18 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 interface PlanningBoardProps {
+  /** Manufacturing orders in legacy format for display */
   orders: LegacyManufacturingOrder[]
+  /** Work centres in legacy format for display */
   workCentres: LegacyWorkCentre[]
-  originalWorkCentres?: any[] // API work centres data for ID mapping
+  /** Original API work centres data for ID mapping during updates */
+  originalWorkCentres?: any[]
+  /** Callback when an order is moved between work centres */
   onOrderMove?: (orderId: string, newWorkCentre: string) => void
+  /** Callback for page navigation */
   onNavigate?: (page: string) => void
+  /** Callback to refresh work centres data after reordering */
+  onWorkCentreUpdate?: () => Promise<void>
 }
 
 // Mock current user for demo
@@ -54,7 +84,12 @@ const currentUser = {
   name: "John Doe",
 }
 
-// Draggable Work Centre Item for Configure Dialog
+/**
+ * DraggableWorkCentreItem - Sortable work centre item for column configuration
+ * 
+ * Used within the configuration dialog to allow users to reorder work centre
+ * columns via drag and drop. Shows work centre name and current job count.
+ */
 function DraggableWorkCentreItem({ 
   workCentre, 
   index, 
@@ -104,7 +139,12 @@ function DraggableWorkCentreItem({
   )
 }
 
-// Draggable Order Component
+/**
+ * DraggableOrderCard - Individual order card with drag-and-drop capability
+ * 
+ * Wraps the OrderCard component with drag-and-drop functionality using dnd-kit.
+ * Handles locking states to prevent movement when order is being moved by another user.
+ */
 function DraggableOrderCard({ 
   order, 
   isLocked, 
@@ -156,14 +196,24 @@ function DraggableOrderCard({
   )
 }
 
-// Droppable Work Centre Column
+/**
+ * DroppableWorkCentre - Work centre column that can receive dropped orders
+ * 
+ * Represents a work centre as a vertical column containing orders.
+ * Provides drop zone for order movement and displays work centre information.
+ * Includes context menu for work centre actions.
+ */
 function DroppableWorkCentre({ 
   workCentre, 
   orders, 
   isOver,
   isOrderLocked,
   getOrderLockInfo,
-  activeOrderId
+  activeOrderId,
+  onNavigate,
+  setViewDetailsWorkCentre,
+  setClearJobsWorkCentre,
+  getOrdersForWorkCentre
 }: {
   workCentre: LegacyWorkCentre
   orders: LegacyManufacturingOrder[]
@@ -171,6 +221,10 @@ function DroppableWorkCentre({
   isOrderLocked: (orderId: string) => boolean
   getOrderLockInfo: (orderId: string) => string
   activeOrderId: string | null
+  onNavigate?: (page: string) => void
+  setViewDetailsWorkCentre: (workCentre: LegacyWorkCentre) => void
+  setClearJobsWorkCentre: (workCentre: LegacyWorkCentre) => void
+  getOrdersForWorkCentre: (workCentreId: string) => LegacyManufacturingOrder[]
 }) {
   const {
     setNodeRef,
@@ -205,10 +259,13 @@ function DroppableWorkCentre({
               <DropdownMenuItem onClick={() => onNavigate?.('workcentres')}>
                 Configure Work Centre
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setViewDetailsWorkCentre(workCentre)}>
                 View Details
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => setClearJobsWorkCentre(workCentre)}
+                disabled={getOrdersForWorkCentre(workCentre.id).length === 0}
+              >
                 Clear All Jobs
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -249,7 +306,7 @@ function DroppableWorkCentre({
   )
 }
 
-export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrderMove, onNavigate }: PlanningBoardProps) {
+export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrderMove, onNavigate, onWorkCentreUpdate }: PlanningBoardProps) {
   const { user, hasPermission } = useAuth()
   const { connectedUsers, lockedOrders, isConnected } = useWebSocket(currentUser)
   const { handleDragStart, handleDragEnd, handleDragOver, activeOrderId } = useDragAndDrop({ 
@@ -260,11 +317,22 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
   const [overId, setOverId] = useState<string | null>(null)
   const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const [isAddWorkCentreDialogOpen, setIsAddWorkCentreDialogOpen] = useState(false)
+  const [viewDetailsWorkCentre, setViewDetailsWorkCentre] = useState<LegacyWorkCentre | null>(null)
+  const [clearJobsWorkCentre, setClearJobsWorkCentre] = useState<LegacyWorkCentre | null>(null)
   const [workCentreOrder, setWorkCentreOrder] = useState<LegacyWorkCentre[]>(() => 
     [...workCentres].sort((a, b) => a.order - b.order)
   )
 
-  // Handle column reordering
+  // Sync workCentreOrder when workCentres prop changes (e.g., after reorder)
+  useEffect(() => {
+    setWorkCentreOrder([...workCentres].sort((a, b) => a.order - b.order))
+  }, [workCentres])
+
+  /**
+   * Handles drag-and-drop reordering of work centre columns
+   * Updates local state immediately for responsive UI
+   * @param event - DragEndEvent from dnd-kit
+   */
   const handleColumnDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     
@@ -286,14 +354,23 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
     })
   }
 
-  // Helper to find numeric ID from legacy code ID
+  /**
+   * Maps legacy work centre code ID to numeric API ID
+   * Required for API calls that expect numeric IDs
+   * @param codeId - Legacy string-based work centre ID
+   * @returns Numeric ID for API calls or null if not found
+   */
   const findNumericId = (codeId: string): number | null => {
     if (!originalWorkCentres) return null
     const workCentre = originalWorkCentres.find((wc: any) => wc.code === codeId)
     return workCentre ? workCentre.id : null
   }
 
-  // Save column order
+  /**
+   * Persists work centre column order to backend
+   * Includes comprehensive error handling and user feedback
+   * Validates permissions and authentication before saving
+   */
   const handleSaveColumnOrder = async () => {
     try {
       // Check authentication and permissions first
@@ -365,8 +442,10 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
       setIsConfigureDialogOpen(false)
       toast.success('Column order saved successfully')
       
-      // Optionally trigger a refresh of the work centres data
-      // This would be handled by the parent component
+      // Trigger immediate refresh of work centres data from parent
+      if (onWorkCentreUpdate) {
+        await onWorkCentreUpdate()
+      }
     } catch (error: any) {
       console.error('Failed to save column order:', error)
       console.error('Error details:', {
@@ -543,6 +622,188 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
         </div>
       </div>
 
+      {/* Work Centre Details Modal */}
+      <Dialog open={!!viewDetailsWorkCentre} onOpenChange={() => setViewDetailsWorkCentre(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Work Centre Details</DialogTitle>
+          </DialogHeader>
+          {viewDetailsWorkCentre && (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Basic Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span className="font-medium">{viewDetailsWorkCentre.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        viewDetailsWorkCentre.status === 'active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {viewDetailsWorkCentre.status === 'active' ? '🟢 Active' : '🔴 Inactive'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Capacity:</span>
+                      <span className="font-medium">{viewDetailsWorkCentre.capacity} jobs</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Current Jobs:</span>
+                      <span className="font-medium">{viewDetailsWorkCentre.currentJobs} jobs</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Utilization:</span>
+                      <span className="font-medium">
+                        {Math.round((viewDetailsWorkCentre.currentJobs / viewDetailsWorkCentre.capacity) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Machines</h3>
+                  <div className="space-y-1">
+                    {viewDetailsWorkCentre.machines.length > 0 ? (
+                      viewDetailsWorkCentre.machines.map((machine, index) => (
+                        <div key={index} className="px-2 py-1 bg-gray-100 rounded text-sm">
+                          {machine}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-sm">No machines assigned</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Current Orders */}
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-2">Current Orders</h3>
+                <div className="border rounded-lg">
+                  {getOrdersForWorkCentre(viewDetailsWorkCentre.id).length > 0 ? (
+                    <div className="max-h-60 overflow-y-auto">
+                      {getOrdersForWorkCentre(viewDetailsWorkCentre.id).map((order) => (
+                        <div key={order.id} className="flex items-center justify-between p-3 border-b last:border-b-0">
+                          <div>
+                            <p className="font-medium text-sm">{order.orderNumber}</p>
+                            <p className="text-xs text-gray-600">{order.stockCode} - {order.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm">
+                              {order.quantityCompleted}/{order.quantityToMake}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {Math.round((order.quantityCompleted / order.quantityToMake) * 100)}% complete
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-gray-500">
+                      No orders currently assigned
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  onClick={() => {
+                    setViewDetailsWorkCentre(null)
+                    onNavigate?.('workcentres')
+                  }}
+                  className="flex-1"
+                >
+                  Edit Work Centre
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => setViewDetailsWorkCentre(null)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear All Jobs Confirmation Modal */}
+      <Dialog open={!!clearJobsWorkCentre} onOpenChange={() => setClearJobsWorkCentre(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear All Jobs</DialogTitle>
+          </DialogHeader>
+          {clearJobsWorkCentre && (
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Are you sure you want to clear all jobs from <strong>{clearJobsWorkCentre.name}</strong>?
+              </p>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>This action will:</strong>
+                </p>
+                <ul className="text-sm text-yellow-700 mt-1 ml-4 list-disc">
+                  <li>Move {getOrdersForWorkCentre(clearJobsWorkCentre.id).length} orders to &quot;Unassigned&quot; status</li>
+                  <li>Remove all orders from this work centre</li>
+                  <li>Allow you to reassign them later</li>
+                </ul>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Orders will not be deleted, only moved to the &quot;Unassigned&quot; area 
+                  where they can be reassigned to other work centres.
+                </p>
+              </div>
+              
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      const ordersToMove = getOrdersForWorkCentre(clearJobsWorkCentre.id)
+                      
+                      // Move all orders to "unassigned" status
+                      for (const order of ordersToMove) {
+                        // Use the existing onOrderMove function with a special "unassigned" work centre
+                        await onOrderMove?.(order.id, 'unassigned')
+                      }
+                      
+                      setClearJobsWorkCentre(null)
+                      toast.success(`Cleared ${ordersToMove.length} jobs from ${clearJobsWorkCentre.name}`)
+                    } catch (error: any) {
+                      console.error('Failed to clear jobs:', error)
+                      toast.error('Failed to clear jobs. Please try again.')
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  Clear All Jobs
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => setClearJobsWorkCentre(null)}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -565,6 +826,10 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                   isOrderLocked={isOrderLocked}
                   getOrderLockInfo={getOrderLockInfo}
                   activeOrderId={activeOrderId}
+                  onNavigate={onNavigate}
+                  setViewDetailsWorkCentre={setViewDetailsWorkCentre}
+                  setClearJobsWorkCentre={setClearJobsWorkCentre}
+                  getOrdersForWorkCentre={getOrdersForWorkCentre}
                 />
               )
             })}

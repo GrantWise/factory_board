@@ -1,12 +1,27 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { AppSidebar } from "./components/app-sidebar"
-import { DashboardOverview } from "./components/dashboard-overview"
-import { PlanningBoard } from "./components/planning-board"
-import { OrdersTable } from "./components/orders-table"
-import { WorkCentresManagement } from "./components/work-centres-management"
-import { ThemeToggle } from "./components/theme-toggle"
+/**
+ * Dashboard - Main application container and router
+ * 
+ * Manages the overall application state, navigation between pages, and coordinates
+ * data fetching for orders and work centres. Acts as the primary orchestrator
+ * for all manufacturing operations interfaces.
+ * 
+ * Features:
+ * - Real-time data fetching with auto-refresh
+ * - Page navigation and routing
+ * - Order movement coordination between work centres
+ * - Loading states and error handling
+ * - Legacy data format adaptation for existing components
+ */
+
+import { useState } from "react"
+import { AppSidebar } from "@/components/app-sidebar"
+import { DashboardOverview } from "@/components/dashboard-overview"
+import { PlanningBoard } from "@/components/planning-board"
+import { OrdersTable } from "@/components/orders-table"
+import { WorkCentresManagement } from "@/components/work-centres-management"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,22 +32,14 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { useApiData } from "./hooks/use-api-data"
-import { ordersService, workCentresService } from "./lib/api-services"
+import { useApiData } from "@/hooks/use-api-data"
+import { ordersService, workCentresService } from "@/lib/api-services"
 import { 
   adaptOrdersToLegacy, 
   adaptWorkCentresToLegacy, 
   calculateDashboardMetrics,
-  transformPlanningBoardData,
   getWorkCentreIdFromCode,
-} from "./lib/data-adapters"
-import type { 
-  ManufacturingOrder, 
-  WorkCentre, 
-  LegacyManufacturingOrder, 
-  LegacyWorkCentre,
-  DashboardMetrics 
-} from "./types/manufacturing"
+} from "@/lib/data-adapters"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -74,36 +81,97 @@ export default function Dashboard() {
   
   const isLoading = ordersLoading || workCentresLoading
 
+  /**
+   * Handles moving an order from one work centre to another
+   * Coordinates with the backend API and refreshes local data
+   * @param orderId - Legacy string ID of the order to move
+   * @param newWorkCentreCode - Target work centre code (legacy format)
+   */
   const handleOrderMove = async (orderId: string, newWorkCentreCode: string) => {
     try {
+      console.log('[Dashboard] Starting order move:', { orderId, newWorkCentreCode });
+      
       const orderIdNum = parseInt(orderId)
+      if (isNaN(orderIdNum)) {
+        console.error('[Dashboard] Invalid order ID:', orderId);
+        toast.error('Invalid order ID')
+        return
+      }
+      
       const workCentreId = getWorkCentreIdFromCode(newWorkCentreCode, workCentres)
       
       if (!workCentreId) {
+        console.error('[Dashboard] Work centre not found:', newWorkCentreCode);
         toast.error('Invalid work centre')
         return
       }
       
+      console.log('[Dashboard] Moving order:', { orderIdNum, workCentreId });
       await ordersService.move(orderIdNum, workCentreId, 'Moved via planning board')
       
+      console.log('[Dashboard] Order moved successfully, refreshing data');
       // Refresh data to get updated state
       await Promise.all([refetchOrders(), refetchWorkCentres()])
       
       toast.success('Order moved successfully')
     } catch (error: any) {
-      toast.error(error.error || 'Failed to move order')
+      console.error('[Dashboard] Order move failed:', {
+        orderId,
+        newWorkCentreCode,
+        error: error.message || error.error,
+        status: error.status,
+        code: error.code
+      });
+      
+      let errorMessage = 'Failed to move order';
+      if (error.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage = 'Permission denied. You do not have access to move orders.';
+      } else if (error.status === 404) {
+        errorMessage = 'Order or work centre not found.';
+      } else if (error.status === 0) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.error) {
+        errorMessage = error.error;
+      }
+      
+      toast.error(errorMessage)
     }
   }
 
-  const handleWorkCentreUpdate = async (updatedCentres: LegacyWorkCentre[]) => {
+  /**
+   * Handles work centre updates by refreshing data from API
+   * Called when work centres are modified (create, update, delete operations)
+   */
+  const handleWorkCentreUpdate = async () => {
     try {
+      console.log('[Dashboard] Refreshing work centres data after update');
       // Note: This is called when work centres are modified locally
       // The individual operations (create, update, delete) should handle API calls
       // This is just a refresh to get the latest state
       await refetchWorkCentres()
+      console.log('[Dashboard] Work centres data refreshed successfully');
       toast.success('Work centres updated successfully')
     } catch (error: any) {
-      toast.error(error.error || 'Failed to update work centres')
+      console.error('[Dashboard] Work centre refresh failed:', {
+        error: error.message || error.error,
+        status: error.status,
+        code: error.code
+      });
+      
+      let errorMessage = 'Failed to update work centres';
+      if (error.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage = 'Permission denied. You do not have access to work centres.';
+      } else if (error.status === 0) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.error) {
+        errorMessage = error.error;
+      }
+      
+      toast.error(errorMessage)
     }
   }
 
@@ -126,6 +194,11 @@ export default function Dashboard() {
     }
   }
 
+  /**
+   * Renders the current page component based on navigation state
+   * Handles loading states and passes appropriate data to each page
+   * @returns JSX element for the current page
+   */
   const renderCurrentPage = () => {
     // Show loading spinner for initial data load
     if (isLoading && orders.length === 0 && workCentres.length === 0) {
@@ -143,7 +216,7 @@ export default function Dashboard() {
       case "dashboard":
         return <DashboardOverview metrics={dashboardMetrics} recentOrders={legacyOrders} onNavigate={setCurrentPage} />
       case "planning":
-        return <PlanningBoard orders={legacyOrders} workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} />
+        return <PlanningBoard orders={legacyOrders} workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} />
       case "workcentres":
         return <WorkCentresManagement workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
