@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AnalyticsCards } from "./analytics-cards"
 import { Plus, Eye, Activity, Clock } from "lucide-react"
-import type { DashboardMetrics, ManufacturingOrder } from "@/types/manufacturing"
+import type { DashboardMetrics, LegacyManufacturingOrder } from "@/types/manufacturing"
 
 interface DashboardOverviewProps {
   metrics: DashboardMetrics
-  recentOrders: ManufacturingOrder[]
+  recentOrders: LegacyManufacturingOrder[]
   onNavigate?: (page: string) => void
 }
 
@@ -17,7 +17,7 @@ export function DashboardOverview({ metrics, recentOrders, onNavigate }: Dashboa
     id: order.id,
     action: order.status === "complete" ? "Completed" : "Moved to",
     order: order.orderNumber,
-    location: order.workCentre,
+    location: order.workCentre || 'Unknown',
     time: "2h ago", // Mock time
   }))
 
@@ -25,7 +25,7 @@ export function DashboardOverview({ metrics, recentOrders, onNavigate }: Dashboa
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-primary-blue">Manufacturing Dashboard</h2>
+          <h2 className="text-2xl font-bold text-primary">Manufacturing Dashboard</h2>
           <p className="text-gray-600">Overview of your manufacturing operations</p>
         </div>
         <div className="flex gap-2">

@@ -1,8 +1,8 @@
-import type { ManufacturingOrder, WorkCentre, DashboardMetrics } from "@/types/manufacturing"
+import type { ManufacturingOrder, WorkCentre, DashboardMetrics, Machine } from "@/types/manufacturing"
 
 export const sampleOrders: ManufacturingOrder[] = [
   {
-    id: "1",
+    id: 1,
     orderNumber: "MO-2024-001",
     stockCode: "WIDGET-A01",
     description: "Premium Widget Assembly",
@@ -10,20 +10,40 @@ export const sampleOrders: ManufacturingOrder[] = [
     quantityCompleted: 150,
     currentOperation: "Drilling",
     currentStep: "Assembly",
-    workCentre: "ASSEMBLY-01",
-    status: "in-progress",
+    workCentreId: 2,
+    workCentreCode: "ASSEMBLY-01",
+    workCentreName: "Assembly",
+    status: "in_progress",
     priority: "high",
     dueDate: "2024-06-15",
     startDate: "2024-06-01",
+    createdBy: 1,
+    createdByUsername: "admin",
     manufacturingSteps: [
-      { step: "Cutting", operation: "Rough Cut", workCentre: "CUT-01", status: "complete" },
-      { step: "Assembly", operation: "Drilling", workCentre: "ASSEMBLY-01", status: "in-progress" },
-      { step: "Quality Check", operation: "Inspection", workCentre: "QC-01", status: "pending" },
-      { step: "Packaging", operation: "Final Pack", workCentre: "PACK-01", status: "pending" },
+      { 
+        id: 1, stepNumber: 1, step: "Cutting", operation: "Rough Cut", 
+        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
+        status: "complete", quantityCompleted: 500 
+      },
+      { 
+        id: 2, stepNumber: 2, step: "Assembly", operation: "Drilling", 
+        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
+        status: "in_progress", quantityCompleted: 150 
+      },
+      { 
+        id: 3, stepNumber: 3, step: "Quality Check", operation: "Inspection", 
+        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
+        status: "pending", quantityCompleted: 0 
+      },
+      { 
+        id: 4, stepNumber: 4, step: "Packaging", operation: "Final Pack", 
+        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
+        status: "pending", quantityCompleted: 0 
+      },
     ],
   },
   {
-    id: "2",
+    id: 2,
     orderNumber: "MO-2024-002",
     stockCode: "GEAR-B02",
     description: "Industrial Gear Set",
@@ -31,20 +51,40 @@ export const sampleOrders: ManufacturingOrder[] = [
     quantityCompleted: 200,
     currentOperation: "Final Pack",
     currentStep: "Packaging",
-    workCentre: "PACK-01",
+    workCentreId: 4,
+    workCentreCode: "PACK-01",
+    workCentreName: "Packaging",
     status: "complete",
     priority: "medium",
     dueDate: "2024-06-10",
     startDate: "2024-05-25",
+    createdBy: 1,
+    createdByUsername: "admin",
     manufacturingSteps: [
-      { step: "Cutting", operation: "Precision Cut", workCentre: "CUT-01", status: "complete" },
-      { step: "Assembly", operation: "Gear Assembly", workCentre: "ASSEMBLY-01", status: "complete" },
-      { step: "Quality Check", operation: "Inspection", workCentre: "QC-01", status: "complete" },
-      { step: "Packaging", operation: "Final Pack", workCentre: "PACK-01", status: "complete" },
+      { 
+        id: 5, stepNumber: 1, step: "Cutting", operation: "Precision Cut", 
+        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
+        status: "complete", quantityCompleted: 200 
+      },
+      { 
+        id: 6, stepNumber: 2, step: "Assembly", operation: "Gear Assembly", 
+        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
+        status: "complete", quantityCompleted: 200 
+      },
+      { 
+        id: 7, stepNumber: 3, step: "Quality Check", operation: "Inspection", 
+        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
+        status: "complete", quantityCompleted: 200 
+      },
+      { 
+        id: 8, stepNumber: 4, step: "Packaging", operation: "Final Pack", 
+        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
+        status: "complete", quantityCompleted: 200 
+      },
     ],
   },
   {
-    id: "3",
+    id: 3,
     orderNumber: "MO-2024-003",
     stockCode: "MOTOR-C03",
     description: "Electric Motor Unit",
@@ -52,128 +92,116 @@ export const sampleOrders: ManufacturingOrder[] = [
     quantityCompleted: 0,
     currentOperation: "Rough Cut",
     currentStep: "Cutting",
-    workCentre: "CUT-01",
-    status: "not-started",
+    workCentreId: 1,
+    workCentreCode: "CUT-01",
+    workCentreName: "Cutting",
+    status: "not_started",
     priority: "low",
     dueDate: "2024-06-20",
     startDate: "2024-06-05",
+    createdBy: 1,
+    createdByUsername: "admin",
     manufacturingSteps: [
-      { step: "Cutting", operation: "Rough Cut", workCentre: "CUT-01", status: "pending" },
-      { step: "Assembly", operation: "Motor Assembly", workCentre: "ASSEMBLY-01", status: "pending" },
-      { step: "Quality Check", operation: "Testing", workCentre: "QC-01", status: "pending" },
-      { step: "Packaging", operation: "Motor Pack", workCentre: "PACK-01", status: "pending" },
-    ],
-  },
-  {
-    id: "4",
-    orderNumber: "MO-2024-004",
-    stockCode: "VALVE-D04",
-    description: "Hydraulic Valve Assembly",
-    quantityToMake: 300,
-    quantityCompleted: 75,
-    currentOperation: "Inspection",
-    currentStep: "Quality Check",
-    workCentre: "QC-01",
-    status: "overdue",
-    priority: "high",
-    dueDate: "2024-06-05",
-    startDate: "2024-05-20",
-    manufacturingSteps: [
-      { step: "Cutting", operation: "Valve Cut", workCentre: "CUT-01", status: "complete" },
-      { step: "Assembly", operation: "Valve Assembly", workCentre: "ASSEMBLY-01", status: "complete" },
-      { step: "Quality Check", operation: "Inspection", workCentre: "QC-01", status: "in-progress" },
-      { step: "Packaging", operation: "Valve Pack", workCentre: "PACK-01", status: "pending" },
-    ],
-  },
-  {
-    id: "5",
-    orderNumber: "MO-2024-005",
-    stockCode: "BEARING-E05",
-    description: "Precision Bearing Set",
-    quantityToMake: 1000,
-    quantityCompleted: 800,
-    currentOperation: "Bearing Assembly",
-    currentStep: "Assembly",
-    workCentre: "ASSEMBLY-01",
-    status: "in-progress",
-    priority: "medium",
-    dueDate: "2024-06-18",
-    startDate: "2024-05-30",
-    manufacturingSteps: [
-      { step: "Cutting", operation: "Precision Cut", workCentre: "CUT-01", status: "complete" },
-      { step: "Assembly", operation: "Bearing Assembly", workCentre: "ASSEMBLY-01", status: "in-progress" },
-      { step: "Quality Check", operation: "Precision Test", workCentre: "QC-01", status: "pending" },
-      { step: "Packaging", operation: "Bearing Pack", workCentre: "PACK-01", status: "pending" },
-    ],
-  },
-  {
-    id: "6",
-    orderNumber: "MO-2024-006",
-    stockCode: "SPRING-F06",
-    description: "Heavy Duty Spring Assembly",
-    quantityToMake: 150,
-    quantityCompleted: 50,
-    currentOperation: "Spring Cut",
-    currentStep: "Cutting",
-    workCentre: "CUT-01",
-    status: "in-progress",
-    priority: "high",
-    dueDate: "2024-06-12",
-    startDate: "2024-06-02",
-    manufacturingSteps: [
-      { step: "Cutting", operation: "Spring Cut", workCentre: "CUT-01", status: "in-progress" },
-      { step: "Assembly", operation: "Spring Assembly", workCentre: "ASSEMBLY-01", status: "pending" },
-      { step: "Quality Check", operation: "Spring Test", workCentre: "QC-01", status: "pending" },
-      { step: "Packaging", operation: "Spring Pack", workCentre: "PACK-01", status: "pending" },
+      { 
+        id: 9, stepNumber: 1, step: "Cutting", operation: "Rough Cut", 
+        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
+        status: "pending", quantityCompleted: 0 
+      },
+      { 
+        id: 10, stepNumber: 2, step: "Assembly", operation: "Motor Assembly", 
+        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
+        status: "pending", quantityCompleted: 0 
+      },
+      { 
+        id: 11, stepNumber: 3, step: "Quality Check", operation: "Testing", 
+        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
+        status: "pending", quantityCompleted: 0 
+      },
+      { 
+        id: 12, stepNumber: 4, step: "Packaging", operation: "Motor Pack", 
+        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
+        status: "pending", quantityCompleted: 0 
+      },
     ],
   },
 ]
 
 export const workCentres: WorkCentre[] = [
   {
-    id: "CUT-01",
+    id: 1,
+    code: "CUT-01",
     name: "Cutting",
     capacity: 5,
-    currentJobs: 3,
-    machines: ["CUT-01", "CUT-02", "CUT-03"],
-    status: "active",
-    order: 1,
+    current_jobs: 3,
+    machines: [
+      { id: 1, code: "CUT-01", name: "Cutting Machine 1", is_active: 1 },
+      { id: 2, code: "CUT-02", name: "Cutting Machine 2", is_active: 1 },
+      { id: 3, code: "CUT-03", name: "Cutting Machine 3", is_active: 1 }
+    ],
+    is_active: 1,
+    display_order: 1,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
-    id: "ASSEMBLY-01",
+    id: 2,
+    code: "ASSEMBLY-01",
     name: "Assembly",
     capacity: 8,
-    currentJobs: 5,
-    machines: ["ASM-01", "ASM-02"],
-    status: "active",
-    order: 2,
+    current_jobs: 5,
+    machines: [
+      { id: 4, code: "ASM-01", name: "Assembly Machine 1", is_active: 1 },
+      { id: 5, code: "ASM-02", name: "Assembly Machine 2", is_active: 1 }
+    ],
+    is_active: 1,
+    display_order: 2,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
-    id: "QC-01",
+    id: 3,
+    code: "QC-01",
     name: "Quality Control",
     capacity: 5,
-    currentJobs: 2,
-    machines: ["QC-01", "QC-02", "QC-03"],
-    status: "active",
-    order: 3,
+    current_jobs: 2,
+    machines: [
+      { id: 6, code: "QC-01", name: "QC Machine 1", is_active: 1 },
+      { id: 7, code: "QC-02", name: "QC Machine 2", is_active: 1 },
+      { id: 8, code: "QC-03", name: "QC Machine 3", is_active: 1 }
+    ],
+    is_active: 1,
+    display_order: 3,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
-    id: "PACK-01",
+    id: 4,
+    code: "PACK-01",
     name: "Packaging",
     capacity: 6,
-    currentJobs: 1,
-    machines: ["PACK-01", "PACK-02"],
-    status: "active",
-    order: 4,
+    current_jobs: 1,
+    machines: [
+      { id: 9, code: "PACK-01", name: "Packaging Machine 1", is_active: 1 },
+      { id: 10, code: "PACK-02", name: "Packaging Machine 2", is_active: 1 }
+    ],
+    is_active: 1,
+    display_order: 4,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
   {
-    id: "SHIP-01",
+    id: 5,
+    code: "SHIP-01",
     name: "Shipping",
     capacity: 4,
-    currentJobs: 0,
-    machines: ["SHIP-01"],
-    status: "active",
-    order: 5,
+    current_jobs: 0,
+    machines: [
+      { id: 11, code: "SHIP-01", name: "Shipping Machine 1", is_active: 1 }
+    ],
+    is_active: 1,
+    display_order: 5,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
   },
 ]
 

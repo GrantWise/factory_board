@@ -11,19 +11,33 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical, Power, Edit } from "lucide-react"
-import type { WorkCentre } from "@/types/manufacturing"
+import type { LegacyWorkCentre, WorkCentre } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
+import { workCentresService } from "@/lib/api-services"
+import { toast } from "sonner"
 
 interface WorkCentresManagementProps {
-  workCentres: WorkCentre[]
-  onWorkCentreUpdate?: (workCentres: WorkCentre[]) => void
+  workCentres: LegacyWorkCentre[]
+  originalWorkCentres?: WorkCentre[]
+  onWorkCentreUpdate?: (workCentres: LegacyWorkCentre[]) => void
 }
 
-export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkCentresManagementProps) {
-  const [centres, setCentres] = useState<WorkCentre[]>(workCentres)
+// Helper to find the numeric ID from code for API calls
+// This requires access to the original work centres data from the API
+// We'll pass this down or access it through a context/prop
+
+export function WorkCentresManagement({ workCentres, originalWorkCentres, onWorkCentreUpdate }: WorkCentresManagementProps) {
+  const [centres, setCentres] = useState<LegacyWorkCentre[]>(workCentres)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingCentre, setEditingCentre] = useState<WorkCentre | null>(null)
+  const [editingCentre, setEditingCentre] = useState<LegacyWorkCentre | null>(null)
   const [draggedCentre, setDraggedCentre] = useState<string | null>(null)
+
+  // Helper function to find numeric ID from legacy code ID
+  const findNumericId = (codeId: string): number | null => {
+    if (!originalWorkCentres) return null
+    const workCentre = originalWorkCentres.find(wc => wc.code === codeId)
+    return workCentre ? workCentre.id : null
+  }
 
   const [newCentre, setNewCentre] = useState({
     name: "",
@@ -32,28 +46,36 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
     status: "active" as "active" | "inactive",
   })
 
-  const handleAddCentre = () => {
-    const centre: WorkCentre = {
-      id: `WC-${Date.now()}`,
-      name: newCentre.name,
-      capacity: newCentre.capacity,
-      currentJobs: 0,
-      machines: newCentre.machines
-        .split(",")
-        .map((m) => m.trim())
-        .filter(Boolean),
-      status: newCentre.status,
-      order: centres.length + 1,
-    }
+  const handleAddCentre = async () => {
+    try {
+      if (!newCentre.name.trim()) {
+        toast.error('Work centre name is required')
+        return
+      }
 
-    const updatedCentres = [...centres, centre]
-    setCentres(updatedCentres)
-    onWorkCentreUpdate?.(updatedCentres)
-    setIsAddDialogOpen(false)
-    setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      const workCentreData = {
+        name: newCentre.name.trim(),
+        code: `WC-${newCentre.name.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        capacity: newCentre.capacity,
+        display_order: centres.length + 1,
+      }
+
+      await workCentresService.create(workCentreData)
+      
+      // Add machines if provided
+      // Note: This would need additional API calls for each machine
+      // For now, we'll handle this in a future enhancement
+      
+      onWorkCentreUpdate?.(centres) // Trigger refresh
+      setIsAddDialogOpen(false)
+      setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      toast.success('Work centre created successfully')
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to create work centre')
+    }
   }
 
-  const handleEditCentre = (centre: WorkCentre) => {
+  const handleEditCentre = (centre: LegacyWorkCentre) => {
     setEditingCentre(centre)
     setNewCentre({
       name: centre.name,
@@ -63,44 +85,93 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
     })
   }
 
-  const handleUpdateCentre = () => {
+  const handleUpdateCentre = async () => {
     if (!editingCentre) return
 
-    const updatedCentres = centres.map((centre) =>
-      centre.id === editingCentre.id
-        ? {
-            ...centre,
-            name: newCentre.name,
-            capacity: newCentre.capacity,
-            machines: newCentre.machines
-              .split(",")
-              .map((m) => m.trim())
-              .filter(Boolean),
-            status: newCentre.status,
-          }
-        : centre,
-    )
+    try {
+      if (!newCentre.name.trim()) {
+        toast.error('Work centre name is required')
+        return
+      }
 
-    setCentres(updatedCentres)
-    onWorkCentreUpdate?.(updatedCentres)
-    setEditingCentre(null)
-    setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      // Find the numeric ID for the API call
+      const numericId = findNumericId(editingCentre.id)
+      
+      if (!numericId) {
+        toast.error('Work centre not found in system')
+        return
+      }
+
+      const updates = {
+        name: newCentre.name.trim(),
+        capacity: newCentre.capacity,
+        is_active: newCentre.status === 'active' ? 1 : 0,
+      }
+
+      await workCentresService.update(numericId, updates)
+
+      onWorkCentreUpdate?.(centres) // Trigger refresh from API
+      setEditingCentre(null)
+      setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      toast.success('Work centre updated successfully')
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to update work centre')
+    }
   }
 
-  const handleDeleteCentre = (centreId: string) => {
-    const updatedCentres = centres.filter((centre) => centre.id !== centreId)
-    setCentres(updatedCentres)
-    onWorkCentreUpdate?.(updatedCentres)
+  const handleDeleteCentre = async (centreId: string) => {
+    try {
+      if (!confirm('Are you sure you want to delete this work centre? This action cannot be undone.')) {
+        return
+      }
+
+      // Find the numeric ID for the API call
+      const numericId = findNumericId(centreId)
+      
+      if (!numericId) {
+        toast.error('Work centre not found in system')
+        return
+      }
+
+      await workCentresService.delete(numericId)
+
+      onWorkCentreUpdate?.(centres) // Trigger refresh from API
+      toast.success('Work centre deleted successfully')
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to delete work centre')
+    }
   }
 
-  const handleToggleStatus = (centreId: string) => {
-    const updatedCentres = centres.map((centre) =>
-      centre.id === centreId
-        ? { ...centre, status: centre.status === "active" ? ("inactive" as const) : ("active" as const) }
-        : centre,
-    )
-    setCentres(updatedCentres)
-    onWorkCentreUpdate?.(updatedCentres)
+  const handleToggleStatus = async (centreId: string) => {
+    try {
+      // Find the work centre to toggle
+      const centre = centres.find(c => c.id === centreId)
+      if (!centre) {
+        toast.error('Work centre not found')
+        return
+      }
+
+      // Find the numeric ID for the API call
+      const numericId = findNumericId(centreId)
+      
+      if (!numericId) {
+        toast.error('Work centre not found in system')
+        return
+      }
+
+      const newStatus = centre.status === "active" ? "inactive" : "active"
+      
+      const updates = {
+        is_active: newStatus === 'active' ? 1 : 0,
+      }
+
+      await workCentresService.update(numericId, updates)
+
+      onWorkCentreUpdate?.(centres) // Trigger refresh from API
+      toast.success(`Work centre ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`)
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to update work centre status')
+    }
   }
 
   const handleDragStart = (e: React.DragEvent, centreId: string) => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppSidebar } from "./components/app-sidebar"
 import { DashboardOverview } from "./components/dashboard-overview"
 import { PlanningBoard } from "./components/planning-board"
@@ -17,30 +17,94 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { sampleOrders, workCentres, dashboardMetrics } from "./data/sample-data"
-import type { ManufacturingOrder, WorkCentre } from "./types/manufacturing"
+import { useApiData } from "./hooks/use-api-data"
+import { ordersService, workCentresService } from "./lib/api-services"
+import { 
+  adaptOrdersToLegacy, 
+  adaptWorkCentresToLegacy, 
+  calculateDashboardMetrics,
+  transformPlanningBoardData,
+  getWorkCentreIdFromCode,
+} from "./lib/data-adapters"
+import type { 
+  ManufacturingOrder, 
+  WorkCentre, 
+  LegacyManufacturingOrder, 
+  LegacyWorkCentre,
+  DashboardMetrics 
+} from "./types/manufacturing"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function Dashboard() {
-  const [orders, setOrders] = useState<ManufacturingOrder[]>(sampleOrders)
-  const [centres, setCentres] = useState<WorkCentre[]>(workCentres)
   const [currentPage, setCurrentPage] = useState("dashboard")
+  
+  // Fetch orders from API
+  const {
+    data: ordersResponse,
+    isLoading: ordersLoading,
+    refetch: refetchOrders,
+  } = useApiData(
+    () => ordersService.getAll(),
+    [],
+    { autoRefresh: 30000 } // Refresh every 30 seconds
+  )
+  
+  // Fetch work centres from API
+  const {
+    data: workCentresResponse,
+    isLoading: workCentresLoading,
+    refetch: refetchWorkCentres,
+  } = useApiData(
+    () => workCentresService.getAll(),
+    [],
+    { autoRefresh: 60000 } // Refresh every minute
+  )
+  
+  // Extract data from API responses
+  const orders = ordersResponse?.orders || []
+  const workCentres = workCentresResponse?.workCentres || []
+  
+  // Convert to legacy format for existing components
+  const legacyOrders = adaptOrdersToLegacy(orders)
+  const legacyWorkCentres = adaptWorkCentresToLegacy(workCentres)
+  
+  // Calculate dashboard metrics from real data
+  const dashboardMetrics = calculateDashboardMetrics(orders, workCentres)
+  
+  const isLoading = ordersLoading || workCentresLoading
 
-  const handleOrderMove = (orderId: string, newWorkCentre: string) => {
-    setOrders((prevOrders) =>
-      prevOrders.map((order) => (order.id === orderId ? { ...order, workCentre: newWorkCentre } : order)),
-    )
-
-    // Update work centre job counts
-    setCentres((prevCentres) =>
-      prevCentres.map((centre) => ({
-        ...centre,
-        currentJobs: orders.filter((order) => order.workCentre === centre.id).length,
-      })),
-    )
+  const handleOrderMove = async (orderId: string, newWorkCentreCode: string) => {
+    try {
+      const orderIdNum = parseInt(orderId)
+      const workCentreId = getWorkCentreIdFromCode(newWorkCentreCode, workCentres)
+      
+      if (!workCentreId) {
+        toast.error('Invalid work centre')
+        return
+      }
+      
+      await ordersService.move(orderIdNum, workCentreId, 'Moved via planning board')
+      
+      // Refresh data to get updated state
+      await Promise.all([refetchOrders(), refetchWorkCentres()])
+      
+      toast.success('Order moved successfully')
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to move order')
+    }
   }
 
-  const handleWorkCentreUpdate = (updatedCentres: WorkCentre[]) => {
-    setCentres(updatedCentres)
+  const handleWorkCentreUpdate = async (updatedCentres: LegacyWorkCentre[]) => {
+    try {
+      // Note: This is called when work centres are modified locally
+      // The individual operations (create, update, delete) should handle API calls
+      // This is just a refresh to get the latest state
+      await refetchWorkCentres()
+      toast.success('Work centres updated successfully')
+    } catch (error: any) {
+      toast.error(error.error || 'Failed to update work centres')
+    }
   }
 
   const getPageTitle = () => {
@@ -63,15 +127,27 @@ export default function Dashboard() {
   }
 
   const renderCurrentPage = () => {
+    // Show loading spinner for initial data load
+    if (isLoading && orders.length === 0 && workCentres.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">Loading factory data...</p>
+          </div>
+        </div>
+      )
+    }
+    
     switch (currentPage) {
       case "dashboard":
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={legacyOrders} onNavigate={setCurrentPage} />
       case "planning":
-        return <PlanningBoard orders={orders} workCentres={centres} onOrderMove={handleOrderMove} />
+        return <PlanningBoard orders={legacyOrders} workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} />
       case "workcentres":
-        return <WorkCentresManagement workCentres={centres} onWorkCentreUpdate={handleWorkCentreUpdate} />
+        return <WorkCentresManagement workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
-        return <OrdersTable orders={orders} />
+        return <OrdersTable orders={legacyOrders} />
       case "analytics":
         return (
           <div className="flex items-center justify-center h-64">
@@ -85,7 +161,7 @@ export default function Dashboard() {
           </div>
         )
       default:
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={legacyOrders} onNavigate={setCurrentPage} />
     }
   }
 

@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Download } from "lucide-react"
-import type { ManufacturingOrder } from "@/types/manufacturing"
+import type { LegacyManufacturingOrder } from "@/types/manufacturing"
 
 interface OrdersTableProps {
-  orders: ManufacturingOrder[]
+  orders: LegacyManufacturingOrder[]
 }
 
 export function OrdersTable({ orders }: OrdersTableProps) {
@@ -123,7 +123,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
           <TableBody>
             {filteredOrders.map((order) => {
               const completionPercentage = (order.quantityCompleted / order.quantityToMake) * 100
-              const isOverdue = new Date(order.dueDate) < new Date() && order.status !== "complete"
+              const isOverdue = order.dueDate && new Date(order.dueDate) < new Date() && order.status !== "complete"
 
               return (
                 <TableRow key={order.id}>
@@ -151,7 +151,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className={isOverdue ? "text-red-600 font-medium" : ""}>
-                    {new Date(order.dueDate).toLocaleDateString()}
+                    {order.dueDate ? new Date(order.dueDate).toLocaleDateString() : 'N/A'}
                   </TableCell>
                 </TableRow>
               )

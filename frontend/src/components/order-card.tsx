@@ -3,11 +3,11 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Package, Wrench, Lock } from "lucide-react"
-import type { ManufacturingOrder } from "@/types/manufacturing"
+import type { LegacyManufacturingOrder } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 
 interface OrderCardProps {
-  order: ManufacturingOrder
+  order: LegacyManufacturingOrder
   isDragging?: boolean
   isLocked?: boolean
   lockedBy?: string
@@ -50,7 +50,7 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
 
   const getDueDays = () => {
     const today = new Date()
-    const dueDate = new Date(order.dueDate)
+    const dueDate = new Date(order.dueDate || '')
     const diffTime = dueDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
