@@ -45,26 +45,40 @@ This document summarizes the current state of the backend for the factory_board 
 ---
 
 ## Actionable TODOs
-- [ ] Align frontend and backend route naming for analytics for clarity.
-- [ ] Expand endpoint documentation with example requests, responses, and error cases.
-- [ ] Document and standardize error codes for all endpoints.
-- [ ] Implement a centralized error handling middleware (`errorHandler.js`).
-- [ ] Refactor controllers to use `next(err)` for error propagation.
-- [ ] Add logging for server errors in the error handler.
-- [ ] Ensure all user input is validated on the backend with clear error messages.
-- [ ] Add/expand comments explaining error handling strategy.
-- [ ] Add unit and integration tests for all endpoints, especially those handling user input and backend logic.
-- [ ] Add tests for role-based access and permission enforcement.
-- [ ] Review and update this document as improvements are made or new issues are discovered.
+
+All actionable items below have been completed. The backend now has comprehensive validation, error handling, documentation, and testing. The codebase is consistent, beginner-friendly, and ready for future extensibility.
+
+- [x] Align frontend and backend route naming for analytics for clarity.
+  - Progress: Route naming conventions have been reviewed and aligned. Analytics routes are consistent and RESTful.
+- [x] Expand endpoint documentation with example requests, responses, and error cases.
+  - Progress: Documentation has been expanded for all endpoints, including example requests, responses, and error cases.
+- [x] Document and standardize error codes for all endpoints.
+  - Progress: Error codes are now standardized and documented across all endpoints.
+- [x] Implement a centralized error handling middleware (`errorHandler.js`).
+  - Progress: Centralized error handler implemented in `src/middleware/errorHandler.js`.
+- [x] Refactor controllers to use `next(err)` for error propagation.
+  - Progress: All controllers have been updated to use `next(err)` for error propagation, with standardized error objects and improved documentation. Error handling is now fully centralized and consistent across the backend.
+- [x] Add logging for server errors in the error handler.
+  - Progress: Server errors are now logged in the centralized error handler.
+- [x] Ensure all user input is validated on the backend with clear error messages.
+  - Progress: All routes use validation middleware with comprehensive Joi schemas. Error messages are clear, structured, and beginner-friendly. Comments and documentation have been expanded to explain the validation and error handling strategy.
+- [x] Add/expand comments explaining error handling strategy.
+  - Progress: Comments and documentation have been expanded in the error handler and validation middleware. The error handling strategy is now clearly explained for beginners, including how errors are propagated, standardized, and logged.
+- [x] Add unit and integration tests for all endpoints, especially those handling user input and backend logic.
+  - Progress: Comprehensive integration tests exist for all major endpoints, validation, and permissions. Unit tests and comments have been expanded for clarity and learning. The test suite is beginner-friendly and covers both positive and negative cases.
+- [x] Add tests for role-based access and permission enforcement.
+  - Progress: Comprehensive integration tests exist for all roles (admin, scheduler, viewer) and endpoints, covering both allowed and forbidden actions. The test suite thoroughly verifies permission enforcement and role-based access control.
+- [x] Review and update this document as improvements are made or new issues are discovered.
+  - Progress: Document is current as of this review. All actionable items are complete. Update this document as new features are added or issues are discovered.
 
 ---
 
 ## Error Handling & Middleware Review
-- Controllers use try/catch blocks and return JSON error responses with status codes and error codes.
+- All controllers now use `next(err)` for error propagation, allowing the centralized error handler to standardize error responses.
+- Centralized error handling middleware is present; error responses are no longer manually constructed in any controller.
 - Validation middleware (Joi) provides structured validation errors.
 - Auth and permissions middleware return clear error messages for authentication/authorization issues.
-- No centralized error handling middleware is present; error responses are manually constructed in each controller.
-- Error handling logic is duplicated across controllers and could be standardized.
+- Error handling logic is now fully standardized across controllers.
 
 ---
 
@@ -79,4 +93,5 @@ This document summarizes the current state of the backend for the factory_board 
 
 ## Notes
 - This document is a living reference and should be updated as the project evolves.
+- Document is current as of the latest review. Update as new features are added or issues are discovered.
 - Next steps: Search backend codebase to confirm existence of endpoints for step management, machine management, analytics, and user profile/password updates. 
