@@ -1,8 +1,15 @@
 const AuthService = require('../services/authService');
 
+/**
+ * AuthController
+ * ==============
+ *
+ * Handles authentication, login, logout, token refresh, and profile endpoints.
+ * Now uses next(err) for error propagation to the centralized error handler.
+ */
 class AuthController {
   // POST /api/auth/login
-  async login(req, res) {
+  async login(req, res, next) {
     try {
       const { username, password } = req.body;
       
@@ -23,15 +30,12 @@ class AuthController {
         refreshToken: result.tokens.refreshToken
       });
     } catch (error) {
-      res.status(401).json({
-        error: error.message,
-        code: 'LOGIN_FAILED'
-      });
+      next({ status: 401, code: 'LOGIN_FAILED', message: error.message });
     }
   }
 
   // POST /api/auth/logout
-  async logout(req, res) {
+  async logout(req, res, next) {
     try {
       const ipAddress = req.ip || req.connection.remoteAddress;
       await AuthService.logout(req.user.id, ipAddress);
@@ -40,15 +44,12 @@ class AuthController {
         message: 'Logout successful'
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'LOGOUT_ERROR'
-      });
+      next({ status: 500, code: 'LOGOUT_ERROR', message: error.message });
     }
   }
 
   // POST /api/auth/refresh
-  async refreshToken(req, res) {
+  async refreshToken(req, res, next) {
     try {
       const { refreshToken } = req.body;
       
@@ -67,15 +68,12 @@ class AuthController {
         refreshToken: tokens.refreshToken
       });
     } catch (error) {
-      res.status(401).json({
-        error: error.message,
-        code: 'REFRESH_FAILED'
-      });
+      next({ status: 401, code: 'REFRESH_FAILED', message: error.message });
     }
   }
 
   // GET /api/auth/me
-  async getCurrentUser(req, res) {
+  async getCurrentUser(req, res, next) {
     try {
       const user = AuthService.getUserProfile(req.user.id);
 
@@ -83,15 +81,12 @@ class AuthController {
         user
       });
     } catch (error) {
-      res.status(404).json({
-        error: error.message,
-        code: 'USER_NOT_FOUND'
-      });
+      next({ status: 404, code: 'USER_NOT_FOUND', message: error.message });
     }
   }
 
   // PUT /api/auth/profile
-  async updateProfile(req, res) {
+  async updateProfile(req, res, next) {
     try {
       const updates = req.body;
       
@@ -115,15 +110,12 @@ class AuthController {
         });
       }
 
-      res.status(400).json({
-        error: error.message,
-        code: 'UPDATE_FAILED'
-      });
+      next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
     }
   }
 
   // POST /api/auth/change-password
-  async changePassword(req, res) {
+  async changePassword(req, res, next) {
     try {
       const { currentPassword, newPassword } = req.body;
       
@@ -154,15 +146,12 @@ class AuthController {
         });
       }
 
-      res.status(500).json({
-        error: error.message,
-        code: 'PASSWORD_CHANGE_FAILED'
-      });
+      next({ status: 500, code: 'PASSWORD_CHANGE_FAILED', message: error.message });
     }
   }
 
   // POST /api/auth/register (admin only - handled in userController)
-  async register(req, res) {
+  async register(req, res, next) {
     try {
       // This endpoint is typically admin-only in enterprise systems
       // For now, we'll make it available but could be restricted later
@@ -196,10 +185,7 @@ class AuthController {
         });
       }
 
-      res.status(400).json({
-        error: error.message,
-        code: 'REGISTRATION_FAILED'
-      });
+      next({ status: 400, code: 'REGISTRATION_FAILED', message: error.message });
     }
   }
 }

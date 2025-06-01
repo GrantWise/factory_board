@@ -192,7 +192,7 @@ describe('Authentication Endpoints', () => {
       const response = await request(app)
         .get('/api/auth/me');
 
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
 
     test('should reject invalid token', async () => {
@@ -275,7 +275,7 @@ describe('Authentication Endpoints', () => {
         .put('/api/auth/profile')
         .send(updates);
 
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
 
     test('should prevent role updates through profile endpoint', async () => {
@@ -360,7 +360,7 @@ describe('Authentication Endpoints', () => {
           newPassword: 'newpass456'
         });
 
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
   });
 
@@ -380,7 +380,7 @@ describe('Authentication Endpoints', () => {
       const response = await request(app)
         .post('/api/auth/logout');
 
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
   });
 });

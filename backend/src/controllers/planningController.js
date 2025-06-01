@@ -2,9 +2,16 @@ const ManufacturingOrder = require('../models/ManufacturingOrder');
 const WorkCentre = require('../models/WorkCentre');
 const { getAllActiveLocks } = require('../middleware/dragLocks');
 
+/**
+ * PlanningController
+ * ==================
+ *
+ * Handles endpoints for the planning board, including board data, order moves, and stats.
+ * Now uses next(err) for error propagation to the centralized error handler.
+ */
 class PlanningController {
   // GET /api/planning-board
-  async getPlanningBoardData(req, res) {
+  async getPlanningBoardData(req, res, next) {
     try {
       // Get all work centres with current job counts
       const workCentres = WorkCentre.findAll(false); // Only active work centres
@@ -57,15 +64,12 @@ class PlanningController {
         lastUpdated: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'PLANNING_BOARD_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'PLANNING_BOARD_FETCH_FAILED', message: error.message });
     }
   }
 
   // PUT /api/planning-board/move
-  async moveOrder(req, res) {
+  async moveOrder(req, res, next) {
     try {
       const { orderId, toWorkCentreId, reason } = req.body;
 
@@ -133,15 +137,12 @@ class PlanningController {
         }
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'ORDER_MOVE_FAILED'
-      });
+      next({ status: 500, code: 'ORDER_MOVE_FAILED', message: error.message });
     }
   }
 
   // GET /api/planning-board/stats
-  async getPlanningBoardStats(req, res) {
+  async getPlanningBoardStats(req, res, next) {
     try {
       const { getDatabase } = require('../utils/database');
       const db = getDatabase();
@@ -248,10 +249,7 @@ class PlanningController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'STATS_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'STATS_FETCH_FAILED', message: error.message });
     }
   }
 }

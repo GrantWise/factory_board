@@ -322,6 +322,31 @@ class ManufacturingOrder {
     };
   }
 
+  // Delete an order and all related data
+  delete(orderId) {
+    const transaction = this.db.transaction(() => {
+      // Delete manufacturing steps first (foreign key constraint)
+      this.db.prepare('DELETE FROM manufacturing_steps WHERE order_id = ?').run(orderId);
+      
+      // Delete audit logs related to this order
+      this.db.prepare('DELETE FROM audit_log WHERE order_id = ?').run(orderId);
+      
+      // Delete scanner events related to this order
+      this.db.prepare('DELETE FROM scanner_events WHERE order_id = ?').run(orderId);
+      
+      // Delete the order
+      const result = this.db.prepare(`DELETE FROM ${this.table} WHERE id = ?`).run(orderId);
+      
+      if (result.changes === 0) {
+        throw new Error('Order not found');
+      }
+      
+      return result;
+    });
+    
+    return transaction();
+  }
+
   // Get current step name from manufacturing steps
   getCurrentStep(manufacturingSteps) {
     if (!manufacturingSteps || manufacturingSteps.length === 0) {

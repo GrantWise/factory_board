@@ -94,34 +94,8 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  
-  // Database errors
-  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-    return res.status(409).json({
-      error: 'Duplicate entry detected',
-      code: 'DUPLICATE_ENTRY',
-      details: err.message
-    });
-  }
-  
-  // Validation errors
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Validation failed',
-      code: 'VALIDATION_ERROR',
-      details: err.details
-    });
-  }
-  
-  // Default error response
-  res.status(500).json({
-    error: 'Internal server error',
-    code: 'INTERNAL_ERROR',
-    ...(process.env.NODE_ENV === 'development' && { details: err.message })
-  });
-});
+// Use centralized error handler (must be last middleware)
+const errorHandler = require('./middleware/errorHandler');
+app.use(errorHandler);
 
 module.exports = { app };

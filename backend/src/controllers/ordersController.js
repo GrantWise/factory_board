@@ -4,9 +4,16 @@ const WorkCentre = require('../models/WorkCentre');
 const AuditLog = require('../models/AuditLog');
 const { checkDragLock, createLockForRequest, releaseDragLock } = require('../middleware/dragLocks');
 
+/**
+ * OrdersController
+ * ================
+ *
+ * Handles all endpoints related to manufacturing orders and steps.
+ * Now uses next(err) for error propagation to the centralized error handler.
+ */
 class OrdersController {
   // GET /api/orders
-  async getAllOrders(req, res) {
+  async getAllOrders(req, res, next) {
     try {
       const filters = {
         status: req.query.status,
@@ -30,15 +37,13 @@ class OrdersController {
         count: orders.length
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FETCH_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/orders/:id
-  async getOrder(req, res) {
+  async getOrder(req, res, next) {
     try {
       const order = ManufacturingOrder.findById(req.params.id);
 
@@ -53,15 +58,13 @@ class OrdersController {
         order
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FETCH_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders
-  async createOrder(req, res) {
+  async createOrder(req, res, next) {
     try {
       const orderData = req.body;
       orderData.created_by = req.user.id;
@@ -112,15 +115,13 @@ class OrdersController {
         order
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'CREATION_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'CREATION_FAILED', message: error.message });
     }
   }
 
   // PUT /api/orders/:id
-  async updateOrder(req, res) {
+  async updateOrder(req, res, next) {
     try {
       const orderId = req.params.id;
       const updates = req.body;
@@ -181,15 +182,13 @@ class OrdersController {
         order
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'UPDATE_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
     }
   }
 
   // DELETE /api/orders/:id
-  async deleteOrder(req, res) {
+  async deleteOrder(req, res, next) {
     try {
       const orderId = req.params.id;
 
@@ -219,15 +218,13 @@ class OrdersController {
         message: 'Order deleted successfully'
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'DELETE_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'DELETE_FAILED', message: error.message });
     }
   }
 
   // PUT /api/orders/:id/move
-  async moveOrder(req, res) {
+  async moveOrder(req, res, next) {
     try {
       const orderId = req.params.id;
       const { to_work_centre_id, reason } = req.body;
@@ -262,15 +259,13 @@ class OrdersController {
         order: updatedOrder
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'MOVE_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'MOVE_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders/:id/start-move
-  async startMove(req, res) {
+  async startMove(req, res, next) {
     try {
       const orderId = req.params.id;
       const { orderNumber } = req.body;
@@ -291,15 +286,13 @@ class OrdersController {
         lockExpiry: new Date(Date.now() + 30000).toISOString() // 30 seconds
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'LOCK_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'LOCK_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders/:id/end-move
-  async endMove(req, res) {
+  async endMove(req, res, next) {
     try {
       const orderId = req.params.id;
       const { completed } = req.body;
@@ -318,15 +311,13 @@ class OrdersController {
         orderId: orderId
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'UNLOCK_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'UNLOCK_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders/import
-  async importOrders(req, res) {
+  async importOrders(req, res, next) {
     try {
       // TODO: Implement CSV/Excel import functionality
       // This would involve:
@@ -341,15 +332,13 @@ class OrdersController {
         code: 'NOT_IMPLEMENTED'
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'IMPORT_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'IMPORT_FAILED', message: error.message });
     }
   }
 
   // GET /api/orders/:id/steps
-  async getOrderSteps(req, res) {
+  async getOrderSteps(req, res, next) {
     try {
       const orderId = req.params.id;
 
@@ -367,15 +356,13 @@ class OrdersController {
         steps
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FETCH_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
 
   // PUT /api/orders/:id/steps/:stepId
-  async updateOrderStep(req, res) {
+  async updateOrderStep(req, res, next) {
     try {
       const { id: orderId, stepId } = req.params;
       const updates = req.body;
@@ -401,15 +388,13 @@ class OrdersController {
         step
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'STEP_UPDATE_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'STEP_UPDATE_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders/:id/steps/:stepId/start
-  async startOrderStep(req, res) {
+  async startOrderStep(req, res, next) {
     try {
       const { id: orderId, stepId } = req.params;
 
@@ -428,15 +413,13 @@ class OrdersController {
         step
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'STEP_START_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'STEP_START_FAILED', message: error.message });
     }
   }
 
   // POST /api/orders/:id/steps/:stepId/complete
-  async completeOrderStep(req, res) {
+  async completeOrderStep(req, res, next) {
     try {
       const { id: orderId, stepId } = req.params;
       const { quantity_completed } = req.body;
@@ -456,10 +439,8 @@ class OrdersController {
         step
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'STEP_COMPLETE_FAILED'
-      });
+      // Pass error to centralized error handler
+      next({ status: 400, code: 'STEP_COMPLETE_FAILED', message: error.message });
     }
   }
 }

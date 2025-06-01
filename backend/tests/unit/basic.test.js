@@ -1,3 +1,14 @@
+/**
+ * Basic Unit Tests
+ * ================
+ *
+ * These tests verify the core backend test utilities and setup functions.
+ * They ensure the test database, user creation, and token generation work as expected.
+ *
+ * This file serves as an example of how to write simple unit tests for backend logic.
+ *
+ * Each test includes comments to explain what is being tested and why.
+ */
 const { 
   setupTestDatabase,
   createTestUsers,

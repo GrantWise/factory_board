@@ -1,5 +1,28 @@
 const Joi = require('joi');
 
+/**
+ * Validation Middleware
+ * ====================
+ *
+ * Provides Joi-based validation for request bodies, query parameters, and route parameters.
+ * Ensures all user input is validated before reaching controllers, improving security and reliability.
+ *
+ * Validation errors are returned as structured JSON responses with clear error messages and codes.
+ * Example error response:
+ *   {
+ *     error: 'Validation failed',
+ *     code: 'VALIDATION_ERROR',
+ *     details: { field: 'Error message', ... }
+ *   }
+ *
+ * This middleware is used in all routes that accept user input (POST, PUT, PATCH, etc.).
+ *
+ * For ID parameters, use validateId to ensure IDs are present and valid integers.
+ *
+ * Note: Validation errors are handled here and do not propagate to the centralized error handler.
+ * Only non-validation errors (e.g., database, logic) are passed to next(err).
+ */
+
 // Common validation schemas
 const schemas = {
   // User validation
@@ -81,8 +104,8 @@ const schemas = {
       current_work_centre_id: Joi.number().integer().optional(),
       status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').default('not_started'),
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
-      due_date: Joi.date().iso().optional(),
-      start_date: Joi.date().iso().optional(),
+      due_date: Joi.string().isoDate().optional(),
+      start_date: Joi.string().isoDate().optional(),
       manufacturing_steps: Joi.array().items(
         Joi.object({
           step_number: Joi.number().integer().min(1).required(),
@@ -102,9 +125,9 @@ const schemas = {
       current_work_centre_id: Joi.number().integer().optional(),
       status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').optional(),
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
-      due_date: Joi.date().iso().optional(),
-      start_date: Joi.date().iso().optional(),
-      completion_date: Joi.date().iso().optional()
+      due_date: Joi.string().isoDate().optional(),
+      start_date: Joi.string().isoDate().optional(),
+      completion_date: Joi.string().isoDate().optional()
     }),
     move: Joi.object({
       to_work_centre_id: Joi.number().integer().required(),
@@ -121,8 +144,8 @@ const schemas = {
       planned_duration_minutes: Joi.number().integer().min(0).optional(),
       actual_duration_minutes: Joi.number().integer().min(0).optional(),
       quantity_completed: Joi.number().integer().min(0).optional(),
-      started_at: Joi.date().iso().optional(),
-      completed_at: Joi.date().iso().optional()
+      started_at: Joi.string().isoDate().optional(),
+      completed_at: Joi.string().isoDate().optional()
     }),
     complete: Joi.object({
       quantity_completed: Joi.number().integer().min(0).required()
@@ -140,7 +163,7 @@ const schemas = {
       status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').optional(),
       priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
       work_centre_id: Joi.number().integer().optional(),
-      due_before: Joi.date().iso().optional(),
+      due_before: Joi.string().isoDate().optional(),
       search: Joi.string().max(100).optional()
     }),
     auditFilters: Joi.object({
@@ -148,8 +171,8 @@ const schemas = {
       order_id: Joi.number().integer().optional(),
       user_id: Joi.number().integer().optional(),
       work_centre_id: Joi.number().integer().optional(),
-      from_date: Joi.date().iso().optional(),
-      to_date: Joi.date().iso().optional()
+      from_date: Joi.string().isoDate().optional(),
+      to_date: Joi.string().isoDate().optional()
     })
   }
 };

@@ -1,18 +1,22 @@
 const { getDatabase } = require('../utils/database');
 const AuditLog = require('../models/AuditLog');
 
+/**
+ * AnalyticsController
+ * ===================
+ *
+ * Handles all endpoints related to analytics and reporting.
+ * Now uses next(err) for error propagation to the centralized error handler.
+ */
 class AnalyticsController {
-  constructor() {
-    this.db = getDatabase();
-  }
-
   // GET /api/analytics/dashboard
-  async getDashboardMetrics(req, res) {
+  async getDashboardMetrics(req, res, next) {
     try {
+      const db = getDatabase();
       const metrics = {};
 
       // Total active orders
-      const activeOrdersResult = this.db.prepare(`
+      const activeOrdersResult = db.prepare(`
         SELECT COUNT(*) as count
         FROM manufacturing_orders
         WHERE status IN ('not_started', 'in_progress')
@@ -20,7 +24,7 @@ class AnalyticsController {
       metrics.totalActiveOrders = activeOrdersResult.count;
 
       // Completion rate (percentage of orders completed vs total)
-      const completionResult = this.db.prepare(`
+      const completionResult = db.prepare(`
         SELECT 
           COUNT(*) as total,
           SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) as completed
@@ -32,7 +36,7 @@ class AnalyticsController {
         : 0;
 
       // Work centre utilization (average percentage)
-      const utilizationResult = this.db.prepare(`
+      const utilizationResult = db.prepare(`
         SELECT 
           AVG(CAST(current_jobs AS FLOAT) / CAST(capacity AS FLOAT) * 100) as avg_utilization
         FROM (
@@ -49,7 +53,7 @@ class AnalyticsController {
       metrics.workCentreUtilization = Math.round((utilizationResult.avg_utilization || 0) * 10) / 10;
 
       // Daily production (completed quantity today)
-      const productionResult = this.db.prepare(`
+      const productionResult = db.prepare(`
         SELECT 
           COALESCE(SUM(quantity_completed), 0) as daily_production,
           COALESCE(SUM(quantity_to_make), 0) as daily_target
@@ -61,7 +65,7 @@ class AnalyticsController {
       metrics.dailyTarget = productionResult.daily_target || 300; // Default target
 
       // Overdue orders
-      const overdueResult = this.db.prepare(`
+      const overdueResult = db.prepare(`
         SELECT COUNT(*) as count
         FROM manufacturing_orders
         WHERE due_date < date('now') 
@@ -70,7 +74,7 @@ class AnalyticsController {
       metrics.overdueOrders = overdueResult.count;
 
       // Average cycle time (days from start to completion)
-      const cycleTimeResult = this.db.prepare(`
+      const cycleTimeResult = db.prepare(`
         SELECT AVG(julianday(completion_date) - julianday(start_date)) as avg_cycle_time
         FROM manufacturing_orders
         WHERE status = 'complete' 
@@ -85,16 +89,14 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'METRICS_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'METRICS_FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/analytics/cycle-times
-  async getCycleTimes(req, res) {
+  async getCycleTimes(req, res, next) {
     try {
+      const db = getDatabase();
       const days = parseInt(req.query.days) || 30;
       const workCentreId = req.query.work_centre_id;
 
@@ -112,7 +114,7 @@ class AnalyticsController {
       }
 
       // Overall cycle time statistics
-      const overallStats = this.db.prepare(`
+      const overallStats = db.prepare(`
         SELECT 
           COUNT(*) as order_count,
           AVG(julianday(completion_date) - julianday(start_date)) as avg_cycle_time,
@@ -123,7 +125,7 @@ class AnalyticsController {
       `).get(...params);
 
       // Cycle times by work centre
-      const byWorkCentre = this.db.prepare(`
+      const byWorkCentre = db.prepare(`
         SELECT 
           wc.name as work_centre_name,
           wc.code as work_centre_code,
@@ -137,7 +139,7 @@ class AnalyticsController {
       `).all(...params);
 
       // Daily cycle time trend
-      const dailyTrend = this.db.prepare(`
+      const dailyTrend = db.prepare(`
         SELECT 
           date(completion_date) as completion_date,
           COUNT(*) as completed_orders,
@@ -167,20 +169,18 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'CYCLE_TIME_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'CYCLE_TIME_FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/analytics/work-centre-performance
-  async getWorkCentrePerformance(req, res) {
+  async getWorkCentrePerformance(req, res, next) {
     try {
+      const db = getDatabase();
       const days = parseInt(req.query.days) || 30;
 
       // Work centre performance metrics
-      const performance = this.db.prepare(`
+      const performance = db.prepare(`
         SELECT 
           wc.id,
           wc.name,
@@ -219,20 +219,18 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'PERFORMANCE_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'PERFORMANCE_FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/analytics/order-flow
-  async getOrderFlow(req, res) {
+  async getOrderFlow(req, res, next) {
     try {
+      const db = getDatabase();
       const days = parseInt(req.query.days) || 7;
 
       // Order movements between work centres
-      const flowData = this.db.prepare(`
+      const flowData = db.prepare(`
         SELECT 
           wc_from.name as from_work_centre,
           wc_from.code as from_code,
@@ -251,7 +249,7 @@ class AnalyticsController {
       `).all();
 
       // Daily order movements
-      const dailyMovements = this.db.prepare(`
+      const dailyMovements = db.prepare(`
         SELECT 
           date(timestamp) as movement_date,
           COUNT(*) as total_movements,
@@ -274,16 +272,14 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FLOW_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'FLOW_FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/analytics/audit
-  async getAuditAnalytics(req, res) {
+  async getAuditAnalytics(req, res, next) {
     try {
+      const db = getDatabase();
       const filters = {
         event_type: req.query.event_type,
         user_id: req.query.user_id ? parseInt(req.query.user_id) : undefined,
@@ -305,20 +301,18 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'AUDIT_FETCH_FAILED'
-      });
+      next({ status: 500, code: 'AUDIT_FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/analytics/production-summary
-  async getProductionSummary(req, res) {
+  async getProductionSummary(req, res, next) {
     try {
+      const db = getDatabase();
       const days = parseInt(req.query.days) || 30;
 
       // Production summary by day
-      const dailyProduction = this.db.prepare(`
+      const dailyProduction = db.prepare(`
         SELECT 
           date(COALESCE(completion_date, updated_at)) as production_date,
           COUNT(*) as orders_worked,
@@ -333,7 +327,7 @@ class AnalyticsController {
       `).all();
 
       // Production by stock code
-      const byStockCode = this.db.prepare(`
+      const byStockCode = db.prepare(`
         SELECT 
           stock_code,
           description,
@@ -350,7 +344,7 @@ class AnalyticsController {
       `).all();
 
       // Overall summary
-      const summary = this.db.prepare(`
+      const summary = db.prepare(`
         SELECT 
           COUNT(*) as total_orders,
           SUM(quantity_to_make) as total_planned_quantity,
@@ -379,10 +373,7 @@ class AnalyticsController {
         generated_at: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'PRODUCTION_SUMMARY_FAILED'
-      });
+      next({ status: 500, code: 'PRODUCTION_SUMMARY_FAILED', message: error.message });
     }
   }
 }

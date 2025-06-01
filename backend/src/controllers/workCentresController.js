@@ -1,26 +1,27 @@
 const WorkCentre = require('../models/WorkCentre');
 const AuditLog = require('../models/AuditLog');
 
+/**
+ * WorkCentresController
+ * =====================
+ *
+ * Handles all endpoints related to work centres and machines.
+ * Now uses next(err) for error propagation to the centralized error handler.
+ */
 class WorkCentresController {
   // GET /api/work-centres
-  async getAllWorkCentres(req, res) {
+  async getAllWorkCentres(req, res, next) {
     try {
       const includeInactive = req.query.include_inactive === 'true';
       const workCentres = WorkCentre.findAll(includeInactive);
-
-      res.json({
-        workCentres
-      });
+      res.json({ workCentres });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FETCH_FAILED'
-      });
+      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
 
   // GET /api/work-centres/:id
-  async getWorkCentre(req, res) {
+  async getWorkCentre(req, res, next) {
     try {
       const workCentre = WorkCentre.findById(req.params.id);
 
@@ -35,15 +36,12 @@ class WorkCentresController {
         workCentre
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'FETCH_FAILED'
-      });
+      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
 
   // POST /api/work-centres
-  async createWorkCentre(req, res) {
+  async createWorkCentre(req, res, next) {
     try {
       const workCentreData = req.body;
 
@@ -74,15 +72,12 @@ class WorkCentresController {
         workCentre
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'CREATION_FAILED'
-      });
+      next({ status: 400, code: 'CREATION_FAILED', message: error.message });
     }
   }
 
   // PUT /api/work-centres/:id
-  async updateWorkCentre(req, res) {
+  async updateWorkCentre(req, res, next) {
     try {
       const workCentreId = req.params.id;
       const updates = req.body;
@@ -123,15 +118,12 @@ class WorkCentresController {
         workCentre
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'UPDATE_FAILED'
-      });
+      next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
     }
   }
 
   // DELETE /api/work-centres/:id
-  async deleteWorkCentre(req, res) {
+  async deleteWorkCentre(req, res, next) {
     try {
       const workCentreId = req.params.id;
 
@@ -161,15 +153,12 @@ class WorkCentresController {
         message: 'Work centre deleted successfully'
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'DELETE_FAILED'
-      });
+      next({ status: 500, code: 'DELETE_FAILED', message: error.message });
     }
   }
 
   // PUT /api/work-centres/reorder
-  async reorderWorkCentres(req, res) {
+  async reorderWorkCentres(req, res, next) {
     try {
       const orderUpdates = req.body;
 
@@ -196,15 +185,12 @@ class WorkCentresController {
         message: 'Work centres reordered successfully'
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'REORDER_FAILED'
-      });
+      next({ status: 400, code: 'REORDER_FAILED', message: error.message });
     }
   }
 
   // POST /api/work-centres/:id/machines
-  async addMachine(req, res) {
+  async addMachine(req, res, next) {
     try {
       const workCentreId = req.params.id;
       const machineData = req.body;
@@ -238,15 +224,12 @@ class WorkCentresController {
         machine
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'MACHINE_ADD_FAILED'
-      });
+      next({ status: 400, code: 'MACHINE_ADD_FAILED', message: error.message });
     }
   }
 
   // PUT /api/work-centres/:id/machines/:machineId
-  async updateMachine(req, res) {
+  async updateMachine(req, res, next) {
     try {
       const { id: workCentreId, machineId } = req.params;
       const updates = req.body;
@@ -288,15 +271,12 @@ class WorkCentresController {
         machine
       });
     } catch (error) {
-      res.status(400).json({
-        error: error.message,
-        code: 'MACHINE_UPDATE_FAILED'
-      });
+      next({ status: 400, code: 'MACHINE_UPDATE_FAILED', message: error.message });
     }
   }
 
   // DELETE /api/work-centres/:id/machines/:machineId
-  async deleteMachine(req, res) {
+  async deleteMachine(req, res, next) {
     try {
       const { id: workCentreId, machineId } = req.params;
 
@@ -337,10 +317,7 @@ class WorkCentresController {
         message: 'Machine deleted successfully'
       });
     } catch (error) {
-      res.status(500).json({
-        error: error.message,
-        code: 'MACHINE_DELETE_FAILED'
-      });
+      next({ status: 500, code: 'MACHINE_DELETE_FAILED', message: error.message });
     }
   }
 }

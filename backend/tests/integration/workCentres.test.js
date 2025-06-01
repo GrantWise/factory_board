@@ -79,7 +79,7 @@ describe('Work Centres Endpoints', () => {
       const response = await request(app)
         .get('/api/work-centres');
 
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
 
     test('should filter inactive work centres by default', async () => {

@@ -10,7 +10,7 @@ const authenticateToken = (req, res, next) => {
   if (!token) {
     return res.status(401).json({ 
       error: 'Access token required',
-      code: 'MISSING_TOKEN' 
+      code: 'AUTH_REQUIRED' 
     });
   }
   

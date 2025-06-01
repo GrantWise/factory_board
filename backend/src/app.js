@@ -1,3 +1,18 @@
+/*
+App Entry Point
+===============
+
+This file initializes the Express application, configures middleware, sets up routes, and handles errors.
+- Security, CORS, and rate limiting middleware are applied for safety and performance.
+- All API routes are registered under the /api/ prefix.
+- A centralized error handler is used to standardize error responses and log server errors.
+- Graceful shutdown is handled for SIGTERM and SIGINT signals.
+
+Error Handling:
+- All errors are passed to the centralized errorHandler middleware (see src/middleware/errorHandler.js).
+- The error handler standardizes error responses and logs server errors for debugging.
+*/
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -7,6 +22,7 @@ const path = require('path');
 
 const config = require('./config/database');
 const { runMigrations } = require('../database/migrate');
+const errorHandler = require('./middleware/errorHandler');
 
 // Initialize database
 try {
@@ -102,35 +118,8 @@ app.use('/api/*', (req, res) => {
   });
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  
-  // Database errors
-  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-    return res.status(409).json({
-      error: 'Duplicate entry detected',
-      code: 'DUPLICATE_ENTRY',
-      details: err.message
-    });
-  }
-  
-  // Validation errors
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Validation failed',
-      code: 'VALIDATION_ERROR',
-      details: err.details
-    });
-  }
-  
-  // Default error response
-  res.status(500).json({
-    error: 'Internal server error',
-    code: 'INTERNAL_ERROR',
-    ...(process.env.NODE_ENV === 'development' && { details: err.message })
-  });
-});
+// Centralized error handler (must be last middleware)
+app.use(errorHandler);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

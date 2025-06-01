@@ -432,7 +432,7 @@ describe('Role-Based Access Control', () => {
       const response = await request(app)
         .get('/api/orders')
         .set('Authorization', 'InvalidFormat token123');
-      assertErrorResponse(response, 401, 'MISSING_TOKEN');
+      assertErrorResponse(response, 401, 'AUTH_REQUIRED');
     });
 
     test('admin should not be able to delete themselves', async () => {

@@ -438,7 +438,7 @@ describe('Manufacturing Orders Endpoints', () => {
           const body = assertApiResponse(response, 200);
           
           expect(body).toHaveProperty('message', 'Order locked for moving');
-          expect(body.orderId).toBe(testOrder.id.toString());
+          expect(body.orderId).toBe(testOrder.id);
           expect(body.lockedBy).toBe(testUsers.scheduler.username);
         });
 

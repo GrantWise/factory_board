@@ -20,7 +20,7 @@ class ManufacturingStep {
         const step = steps[i];
         stmt.run(
           orderId,
-          i + 1, // step_number starts from 1
+          step.step_number || (i + 1), // Use provided step_number or fallback to sequential
           step.operation_name,
           step.work_centre_id,
           step.planned_duration_minutes || null,
