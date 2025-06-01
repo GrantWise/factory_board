@@ -16,12 +16,12 @@
  */
 
 import { useState } from "react"
+import { useTheme } from "next-themes"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { PlanningBoard } from "@/components/planning-board"
 import { OrdersTable } from "@/components/orders-table"
 import { WorkCentresManagement } from "@/components/work-centres-management"
-import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -30,6 +30,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { useApiData } from "@/hooks/use-api-data"
@@ -40,11 +41,12 @@ import {
   calculateDashboardMetrics,
   getWorkCentreIdFromCode,
 } from "@/lib/data-adapters"
-import { Loader2 } from "lucide-react"
+import { Loader2, Sun, Moon } from "lucide-react"
 import { toast } from "sonner"
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState("dashboard")
+  const { theme, setTheme } = useTheme()
   
   // Fetch orders from API
   const {
@@ -242,22 +244,26 @@ export default function Dashboard() {
     <SidebarProvider>
       <AppSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-4 bg-sidebar text-sidebar-foreground">
+          <SidebarTrigger className="-ml-1 text-sidebar-foreground hover:bg-sidebar-accent" />
+          <Separator orientation="vertical" className="mr-2 h-4 bg-sidebar-foreground/20" />
           <Breadcrumb>
-            <BreadcrumbList>
+            <BreadcrumbList className="text-sidebar-foreground">
               <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#">Manufacturing</BreadcrumbLink>
+                <BreadcrumbLink href="#" className="text-sidebar-foreground/70 hover:text-sidebar-foreground">Manufacturing</BreadcrumbLink>
               </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbSeparator className="hidden md:block text-sidebar-foreground/50" />
               <BreadcrumbItem>
-                <BreadcrumbPage>{getPageTitle()}</BreadcrumbPage>
+                <BreadcrumbPage className="text-sidebar-foreground font-medium">{getPageTitle()}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
           <div className="ml-auto">
-            <ThemeToggle />
+            <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+              <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
           </div>
         </header>
 

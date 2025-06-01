@@ -28,10 +28,14 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --radius: 0.15rem;
+    --sidebar-background: 201 100% 30%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 240 5.9% 10%; /* old value */
+    /* Updated for Pantone 3015C */
+    --primary-blue: #00609C; /* Pantone 3015C */
+    --primary-blue-rgb: 0, 96, 156;
+    --sidebar-primary: 201 100% 30%; /* HSL for #00609C */
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
@@ -64,9 +68,13 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
+    --sidebar-background: 201 100% 20%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary: 224.3 76.3% 48%; /* old value */
+    /* Updated for Pantone 3015C */
+    --primary-blue: #00609C; /* Pantone 3015C */
+    --primary-blue-rgb: 0, 96, 156;
+    --sidebar-primary: 201 100% 30%; /* HSL for #00609C */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;

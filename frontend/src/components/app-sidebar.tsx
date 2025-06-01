@@ -67,7 +67,7 @@ export function AppSidebar({ currentPage = "dashboard", onNavigate, ...props }: 
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-bold text-primary-blue">FactoryBoard</span>
-            <span className="text-xs text-muted-foreground">Manufacturing Planning</span>
+            <span className="text-xs text-sidebar-foreground/70">Manufacturing Planning</span>
           </div>
         </div>
       </SidebarHeader>
