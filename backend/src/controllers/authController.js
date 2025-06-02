@@ -26,8 +26,8 @@ class AuthController {
       res.json({
         message: 'Login successful',
         user: result.user,
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken
+        access_token: result.tokens.accessToken,
+        refresh_token: result.tokens.refreshToken
       });
     } catch (error) {
       next({ status: 401, code: 'LOGIN_FAILED', message: error.message });
@@ -51,21 +51,21 @@ class AuthController {
   // POST /api/auth/refresh
   async refreshToken(req, res, next) {
     try {
-      const { refreshToken } = req.body;
+      const { refresh_token } = req.body;
       
-      if (!refreshToken) {
+      if (!refresh_token) {
         return res.status(400).json({
           error: 'Refresh token is required',
           code: 'MISSING_REFRESH_TOKEN'
         });
       }
 
-      const tokens = await AuthService.refreshToken(refreshToken);
+      const tokens = await AuthService.refreshToken(refresh_token);
 
       res.json({
         message: 'Token refreshed successfully',
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken
       });
     } catch (error) {
       next({ status: 401, code: 'REFRESH_FAILED', message: error.message });

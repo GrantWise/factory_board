@@ -61,7 +61,7 @@ class ManufacturingOrder {
       ORDER BY ms.step_number
     `).all(id);
     
-    return this.transformForFrontend(order);
+    return order;
   }
 
   // Get all orders with filters
@@ -132,7 +132,7 @@ class ManufacturingOrder {
       `).all(order.id);
     }
     
-    return orders.map(order => this.transformForFrontend(order));
+    return orders;
   }
 
   // Update order
@@ -271,56 +271,6 @@ class ManufacturingOrder {
     }
   }
 
-  // Transform database record to frontend format
-  transformForFrontend(order) {
-    if (!order) return null;
-    
-    // Calculate status (including computed "overdue")
-    let status = order.status;
-    if (order.due_date && order.status !== 'complete' && order.status !== 'cancelled') {
-      const today = new Date();
-      const dueDate = new Date(order.due_date);
-      if (dueDate < today) {
-        status = 'overdue';
-      }
-    }
-    
-    return {
-      id: order.id,
-      orderNumber: order.order_number,
-      stockCode: order.stock_code,
-      description: order.description,
-      quantityToMake: order.quantity_to_make,
-      quantityCompleted: order.quantity_completed,
-      currentOperation: order.current_operation,
-      currentStep: this.getCurrentStep(order.manufacturing_steps),
-      workCentreId: order.current_work_centre_id,
-      workCentreCode: order.work_centre_code,
-      workCentreName: order.work_centre_name,
-      status: status,
-      priority: order.priority,
-      dueDate: order.due_date,
-      startDate: order.start_date,
-      completionDate: order.completion_date,
-      createdBy: order.created_by,
-      createdByUsername: order.created_by_username,
-      manufacturingSteps: order.manufacturing_steps ? order.manufacturing_steps.map(step => ({
-        id: step.id,
-        stepNumber: step.step_number,
-        step: step.operation_name, // For backward compatibility
-        operation: step.operation_name,
-        workCentreId: step.work_centre_id,
-        workCentreCode: step.work_centre_code,
-        workCentreName: step.work_centre_name,
-        status: step.status,
-        plannedDurationMinutes: step.planned_duration_minutes,
-        actualDurationMinutes: step.actual_duration_minutes,
-        quantityCompleted: step.quantity_completed,
-        startedAt: step.started_at,
-        completedAt: step.completed_at
-      })) : []
-    };
-  }
 
   // Delete an order and all related data
   delete(orderId) {

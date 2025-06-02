@@ -8,7 +8,7 @@ import { DragStartEvent, DragEndEvent, DragOverEvent } from "@dnd-kit/core"
 
 interface UseDragAndDropProps {
   currentUser: { id: string; name: string }
-  onOrderMove?: (orderId: string, newWorkCentre: string) => void
+  onOrderMove?: (orderId: number, newWorkCentreId: number) => void
 }
 
 interface UseDragAndDropReturn {
@@ -17,7 +17,7 @@ interface UseDragAndDropReturn {
   handleDragOver: (event: DragOverEvent) => void
   isDragging: boolean
   draggedOrder: ManufacturingOrder | null
-  activeOrderId: string | null
+  activeOrderId: number | null
 }
 
 export function useDragAndDrop({ currentUser, onOrderMove }: UseDragAndDropProps): UseDragAndDropReturn {
@@ -25,15 +25,15 @@ export function useDragAndDrop({ currentUser, onOrderMove }: UseDragAndDropProps
   const { showNotification } = useNotifications()
   const [isDragging, setIsDragging] = useState(false)
   const [draggedOrder, setDraggedOrder] = useState<ManufacturingOrder | null>(null)
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
+  const [activeOrderId, setActiveOrderId] = useState<number | null>(null)
 
   const handleDragStart = (event: DragStartEvent): void => {
     const { active } = event
-    const orderId = active.id as string
+    const orderId = active.id as number
     const orderData = active.data.current as ManufacturingOrder
 
     // Check if order is locked by another user
-    if (lockedOrders.has(orderId)) {
+    if (lockedOrders.has(orderId.toString())) {
       showNotification("This order is being moved by another user", "warning")
       return
     }
@@ -71,8 +71,8 @@ export function useDragAndDrop({ currentUser, onOrderMove }: UseDragAndDropProps
     
     try {
       if (over && active.id !== over.id) {
-        const orderId = active.id as string
-        const targetWorkCentreId = over.id as string
+        const orderId = active.id as number
+        const targetWorkCentreId = over.id as number
         
         // Call the order move callback
         if (onOrderMove) {

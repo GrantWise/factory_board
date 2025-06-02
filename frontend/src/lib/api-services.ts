@@ -19,8 +19,8 @@ export const authService = {
     });
     
     // Store token after successful login
-    if (response.accessToken) {
-      api.setToken(response.accessToken);
+    if (response.access_token) {
+      api.setToken(response.access_token);
     }
     
     return response;
@@ -49,11 +49,11 @@ export const authService = {
 
   refreshToken: async (refreshToken: string): Promise<AuthResponse> => {
     const response = await api.post<AuthResponse>('/auth/refresh', {
-      refreshToken,
+      refresh_token: refreshToken,
     });
     
-    if (response.accessToken) {
-      api.setToken(response.accessToken);
+    if (response.access_token) {
+      api.setToken(response.access_token);
     }
     
     return response;
@@ -161,7 +161,7 @@ export const workCentresService = {
     return api.get<WorkCentresResponse>(endpoint);
   },
 
-  getById: async (id: number): Promise<{ workCentre: WorkCentre }> => {
+  getById: async (id: number): Promise<{ work_centre: WorkCentre }> => {
     return api.get(`/work-centres/${id}`);
   },
 
@@ -171,11 +171,11 @@ export const workCentresService = {
     description?: string;
     capacity: number;
     display_order?: number;
-  }): Promise<{ message: string; workCentre: WorkCentre }> => {
+  }): Promise<{ message: string; work_centre: WorkCentre }> => {
     return api.post('/work-centres', workCentreData);
   },
 
-  update: async (id: number, updates: Partial<WorkCentre>): Promise<{ message: string; workCentre: WorkCentre }> => {
+  update: async (id: number, updates: Partial<WorkCentre>): Promise<{ message: string; work_centre: WorkCentre }> => {
     return api.put(`/work-centres/${id}`, updates);
   },
 

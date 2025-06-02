@@ -35,12 +35,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { useApiData } from "@/hooks/use-api-data"
 import { ordersService, workCentresService } from "@/lib/api-services"
-import { 
-  adaptOrdersToLegacy, 
-  adaptWorkCentresToLegacy, 
-  calculateDashboardMetrics,
-  getWorkCentreIdFromCode,
-} from "@/lib/data-adapters"
+import type { DashboardMetrics } from "@/types/manufacturing"
 import { Loader2, Sun, Moon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -72,44 +67,33 @@ export default function Dashboard() {
   
   // Extract data from API responses
   const orders = ordersResponse?.orders || []
-  const workCentres = workCentresResponse?.workCentres || []
-  
-  // Convert to legacy format for existing components
-  const legacyOrders = adaptOrdersToLegacy(orders)
-  const legacyWorkCentres = adaptWorkCentresToLegacy(workCentres)
+  const workCentres = workCentresResponse?.work_centres || []
   
   // Calculate dashboard metrics from real data
-  const dashboardMetrics = calculateDashboardMetrics(orders, workCentres)
+  const dashboardMetrics: DashboardMetrics = {
+    total_active_orders: orders.filter(o => o.status === 'in_progress' || o.status === 'not_started').length,
+    completion_rate: orders.length > 0 ? (orders.filter(o => o.status === 'complete').length / orders.length) * 100 : 0,
+    work_centre_utilization: workCentres.length > 0 ? (workCentres.reduce((sum, wc) => sum + wc.current_jobs, 0) / workCentres.reduce((sum, wc) => sum + wc.capacity, 0)) * 100 : 0,
+    daily_production: orders.filter(o => o.completion_date?.startsWith(new Date().toISOString().split('T')[0])).reduce((sum, o) => sum + o.quantity_completed, 0),
+    daily_target: 300,
+    overdue_orders: orders.filter(o => o.status === 'overdue').length,
+    average_cycle_time: 12.5
+  }
   
   const isLoading = ordersLoading || workCentresLoading
 
   /**
    * Handles moving an order from one work centre to another
    * Coordinates with the backend API and refreshes local data
-   * @param orderId - Legacy string ID of the order to move
-   * @param newWorkCentreCode - Target work centre code (legacy format)
+   * @param orderId - Numeric ID of the order to move
+   * @param newWorkCentreId - Target work centre ID
    */
-  const handleOrderMove = async (orderId: string, newWorkCentreCode: string) => {
+  const handleOrderMove = async (orderId: number, newWorkCentreId: number) => {
     try {
-      console.log('[Dashboard] Starting order move:', { orderId, newWorkCentreCode });
+      console.log('[Dashboard] Starting order move:', { orderId, newWorkCentreId });
       
-      const orderIdNum = parseInt(orderId)
-      if (isNaN(orderIdNum)) {
-        console.error('[Dashboard] Invalid order ID:', orderId);
-        toast.error('Invalid order ID')
-        return
-      }
-      
-      const workCentreId = getWorkCentreIdFromCode(newWorkCentreCode, workCentres)
-      
-      if (!workCentreId) {
-        console.error('[Dashboard] Work centre not found:', newWorkCentreCode);
-        toast.error('Invalid work centre')
-        return
-      }
-      
-      console.log('[Dashboard] Moving order:', { orderIdNum, workCentreId });
-      await ordersService.move(orderIdNum, workCentreId, 'Moved via planning board')
+      console.log('[Dashboard] Moving order:', { orderId, newWorkCentreId });
+      await ordersService.move(orderId, newWorkCentreId, 'Moved via planning board')
       
       console.log('[Dashboard] Order moved successfully, refreshing data');
       // Refresh data to get updated state
@@ -119,7 +103,7 @@ export default function Dashboard() {
     } catch (error: any) {
       console.error('[Dashboard] Order move failed:', {
         orderId,
-        newWorkCentreCode,
+        newWorkCentreId,
         error: error.message || error.error,
         status: error.status,
         code: error.code
@@ -216,13 +200,13 @@ export default function Dashboard() {
     
     switch (currentPage) {
       case "dashboard":
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={legacyOrders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
       case "planning":
-        return <PlanningBoard orders={legacyOrders} workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} />
+        return <PlanningBoard orders={orders} workCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} />
       case "workcentres":
-        return <WorkCentresManagement workCentres={legacyWorkCentres} originalWorkCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
+        return <WorkCentresManagement workCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
-        return <OrdersTable orders={legacyOrders} />
+        return <OrdersTable orders={orders} />
       case "analytics":
         return (
           <div className="flex items-center justify-center h-64">
@@ -236,7 +220,7 @@ export default function Dashboard() {
           </div>
         )
       default:
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={legacyOrders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
     }
   }
 

@@ -14,7 +14,7 @@ class WorkCentresController {
     try {
       const includeInactive = req.query.include_inactive === 'true';
       const workCentres = WorkCentre.findAll(includeInactive);
-      res.json({ workCentres });
+      res.json({ work_centres: workCentres });
     } catch (error) {
       next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
@@ -33,7 +33,7 @@ class WorkCentresController {
       }
 
       res.json({
-        workCentre
+        work_centre: workCentre
       });
     } catch (error) {
       next({ status: 500, code: 'FETCH_FAILED', message: error.message });

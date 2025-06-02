@@ -81,8 +81,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(response.user);
       
       // Store refresh token in localStorage
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token);
       }
     } catch (error: any) {
       console.error('Login failed:', {
@@ -120,8 +120,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.refreshToken(refreshTokenValue);
       setUser(response.user);
       
-      if (response.refreshToken) {
-        localStorage.setItem('refresh_token', response.refreshToken);
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token);
       }
     } catch (error) {
       console.error('Token refresh failed:', error);

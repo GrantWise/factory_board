@@ -31,11 +31,11 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Download } from "lucide-react"
-import type { LegacyManufacturingOrder } from "@/types/manufacturing"
+import type { ManufacturingOrder } from "@/types/manufacturing"
 
 interface OrdersTableProps {
-  /** Array of manufacturing orders in legacy format */
-  orders: LegacyManufacturingOrder[]
+  /** Array of manufacturing orders in API format */
+  orders: ManufacturingOrder[]
 }
 
 export function OrdersTable({ orders }: OrdersTableProps) {
@@ -46,8 +46,8 @@ export function OrdersTable({ orders }: OrdersTableProps) {
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.stockCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.stock_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.description.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
@@ -76,18 +76,18 @@ export function OrdersTable({ orders }: OrdersTableProps) {
 
   /**
    * Returns CSS classes for status badge styling
-   * @param status - Order status (complete, in-progress, overdue, not-started)
+   * @param status - Order status (complete, in_progress, overdue, not_started)
    * @returns CSS class string for status styling
    */
   const getStatusColor = (status: string) => {
     switch (status) {
       case "complete":
         return "bg-green-100 text-green-800"
-      case "in-progress":
+      case "in_progress":
         return "bg-blue-100 text-blue-800"
       case "overdue":
         return "bg-red-100 text-red-800"
-      case "not-started":
+      case "not_started":
         return "bg-gray-100 text-gray-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -119,21 +119,21 @@ export function OrdersTable({ orders }: OrdersTableProps) {
       
       // Convert filtered orders to CSV rows
       const csvRows = filteredOrders.map(order => {
-        const completionPercentage = Math.round((order.quantityCompleted / order.quantityToMake) * 100)
-        const dueDate = order.dueDate ? new Date(order.dueDate).toLocaleDateString() : 'N/A'
+        const completionPercentage = Math.round((order.quantity_completed / order.quantity_to_make) * 100)
+        const dueDate = order.due_date ? new Date(order.due_date).toLocaleDateString() : 'N/A'
         
         return [
-          order.orderNumber,
-          order.stockCode,
+          order.order_number,
+          order.stock_code,
           `"${order.description.replace(/"/g, '""')}"`, // Escape quotes in description
-          order.quantityToMake,
-          order.quantityCompleted,
+          order.quantity_to_make,
+          order.quantity_completed,
           completionPercentage,
-          order.currentStep,
+          order.current_step,
           order.priority.toUpperCase(),
-          order.status.replace('-', ' ').toUpperCase(),
+          order.status.replace('_', ' ').toUpperCase(),
           dueDate,
-          order.workCentre || 'Unassigned'
+          order.work_centre_code || 'Unassigned'
         ].join(',')
       })
       
@@ -194,8 +194,8 @@ export function OrdersTable({ orders }: OrdersTableProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="not-started">Not Started</SelectItem>
-            <SelectItem value="in-progress">In Progress</SelectItem>
+            <SelectItem value="not_started">Not Started</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
             <SelectItem value="complete">Complete</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
           </SelectContent>
@@ -230,36 +230,36 @@ export function OrdersTable({ orders }: OrdersTableProps) {
           </TableHeader>
           <TableBody>
             {filteredOrders.map((order) => {
-              const completionPercentage = (order.quantityCompleted / order.quantityToMake) * 100
-              const isOverdue = order.dueDate && new Date(order.dueDate) < new Date() && order.status !== "complete"
+              const completionPercentage = (order.quantity_completed / order.quantity_to_make) * 100
+              const isOverdue = order.due_date && new Date(order.due_date) < new Date() && order.status !== "complete"
 
               return (
                 <TableRow key={order.id}>
-                  <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                  <TableCell>{order.stockCode}</TableCell>
+                  <TableCell className="font-medium">{order.order_number}</TableCell>
+                  <TableCell>{order.stock_code}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{order.description}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <div className="flex justify-between text-sm">
                         <span>
-                          {order.quantityCompleted}/{order.quantityToMake}
+                          {order.quantity_completed}/{order.quantity_to_make}
                         </span>
                         <span>{Math.round(completionPercentage)}%</span>
                       </div>
                       <Progress value={completionPercentage} className="h-2" />
                     </div>
                   </TableCell>
-                  <TableCell>{order.currentStep}</TableCell>
+                  <TableCell>{order.current_step}</TableCell>
                   <TableCell>
                     <Badge variant={getPriorityColor(order.priority)}>{order.priority.toUpperCase()}</Badge>
                   </TableCell>
                   <TableCell>
                     <Badge className={getStatusColor(order.status)}>
-                      {order.status.replace("-", " ").toUpperCase()}
+                      {order.status.replace("_", " ").toUpperCase()}
                     </Badge>
                   </TableCell>
                   <TableCell className={isOverdue ? "text-red-600 font-medium" : ""}>
-                    {order.dueDate ? new Date(order.dueDate).toLocaleDateString() : 'N/A'}
+                    {order.due_date ? new Date(order.due_date).toLocaleDateString() : 'N/A'}
                   </TableCell>
                 </TableRow>
               )

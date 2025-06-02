@@ -1,40 +1,42 @@
 // API Response Types (matching backend)
 export interface ManufacturingStep {
   id: number
-  stepNumber: number
+  step_number: number
   step: string
   operation: string
-  workCentreId: number
-  workCentreCode: string
-  workCentreName: string
+  work_centre_id: number
+  work_centre_code: string
+  work_centre_name: string
   status: "pending" | "in_progress" | "complete" | "skipped"
-  plannedDurationMinutes?: number
-  actualDurationMinutes?: number
-  quantityCompleted: number
-  startedAt?: string
-  completedAt?: string
+  planned_duration_minutes?: number
+  actual_duration_minutes?: number
+  quantity_completed: number
+  started_at?: string
+  completed_at?: string
 }
 
 export interface ManufacturingOrder {
   id: number
-  orderNumber: string
-  stockCode: string
+  order_number: string
+  stock_code: string
   description: string
-  quantityToMake: number
-  quantityCompleted: number
-  currentOperation?: string
-  currentStep?: string
-  workCentreId?: number
-  workCentreCode?: string
-  workCentreName?: string
+  quantity_to_make: number
+  quantity_completed: number
+  current_operation?: string
+  current_step?: string
+  current_work_centre_id?: number
+  work_centre_code?: string
+  work_centre_name?: string
   status: "not_started" | "in_progress" | "complete" | "overdue" | "on_hold" | "cancelled"
   priority: "low" | "medium" | "high" | "urgent"
-  dueDate?: string
-  startDate?: string
-  completionDate?: string
-  createdBy: number
-  createdByUsername: string
-  manufacturingSteps: ManufacturingStep[]
+  due_date?: string
+  start_date?: string
+  completion_date?: string
+  created_by: number
+  created_by_username: string
+  created_at?: string
+  updated_at?: string
+  manufacturing_steps: ManufacturingStep[]
 }
 
 export interface Machine {
@@ -63,13 +65,13 @@ export interface WorkCentre {
 }
 
 export interface DashboardMetrics {
-  totalActiveOrders: number
-  completionRate: number
-  workCentreUtilization: number
-  dailyProduction: number
-  dailyTarget: number
-  overdueOrders: number
-  averageCycleTime: number
+  total_active_orders: number
+  completion_rate: number
+  work_centre_utilization: number
+  daily_production: number
+  daily_target: number
+  overdue_orders: number
+  average_cycle_time: number
 }
 
 // API Response interfaces
@@ -79,23 +81,23 @@ export interface OrdersResponse {
 }
 
 export interface WorkCentresResponse {
-  workCentres: WorkCentre[]
+  work_centres: WorkCentre[]
 }
 
 export interface PlanningBoardResponse {
-  workCentres: WorkCentre[]
+  work_centres: WorkCentre[]
   orders: ManufacturingOrder[]
-  ordersByWorkCentre: Record<string, ManufacturingOrder[]>
-  activeLocks: Record<string, any>
+  orders_by_work_centre: Record<string, ManufacturingOrder[]>
+  active_locks: Record<string, any>
   summary: {
-    totalWorkCentres: number
-    totalOrders: number
-    totalActiveOrders: number
-    totalCompletedOrders: number
-    totalOverdueOrders: number
-    activeDragOperations: number
+    total_work_centres: number
+    total_orders: number
+    total_active_orders: number
+    total_completed_orders: number
+    total_overdue_orders: number
+    active_drag_operations: number
   }
-  lastUpdated: string
+  last_updated: string
 }
 
 // User types
@@ -114,41 +116,7 @@ export interface User {
 export interface AuthResponse {
   message: string
   user: User
-  accessToken: string
-  refreshToken: string
+  access_token: string
+  refresh_token: string
 }
 
-// Legacy types for backward compatibility
-export interface LegacyManufacturingStep {
-  step: string
-  operation: string
-  workCentre: string
-  status: "pending" | "in-progress" | "complete"
-}
-
-export interface LegacyManufacturingOrder {
-  id: string
-  orderNumber: string
-  stockCode: string
-  description: string
-  quantityToMake: number
-  quantityCompleted: number
-  currentOperation: string
-  currentStep: string
-  workCentre: string
-  status: "not-started" | "in-progress" | "complete" | "overdue"
-  priority: "low" | "medium" | "high"
-  dueDate: string
-  startDate: string
-  manufacturingSteps: LegacyManufacturingStep[]
-}
-
-export interface LegacyWorkCentre {
-  id: string
-  name: string
-  capacity: number
-  currentJobs: number
-  machines: string[]
-  status: "active" | "inactive"
-  order: number
-}

@@ -28,13 +28,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { AnalyticsCards } from "@/components/analytics-cards"
 import { Plus, Eye, Activity, Clock } from "lucide-react"
-import type { DashboardMetrics, LegacyManufacturingOrder } from "@/types/manufacturing"
+import type { DashboardMetrics, ManufacturingOrder } from "@/types/manufacturing"
 
 interface DashboardOverviewProps {
-  /** Calculated dashboard metrics from data adapters */
+  /** Calculated dashboard metrics from API data */
   metrics: DashboardMetrics
   /** Recent manufacturing orders for activity display */
-  recentOrders: LegacyManufacturingOrder[]
+  recentOrders: ManufacturingOrder[]
   /** Navigation callback for page routing */
   onNavigate?: (page: string) => void
 }
@@ -43,8 +43,8 @@ export function DashboardOverview({ metrics, recentOrders, onNavigate }: Dashboa
   const recentActivity = recentOrders.slice(0, 5).map((order) => ({
     id: order.id,
     action: order.status === "complete" ? "Completed" : "Moved to",
-    order: order.orderNumber,
-    location: order.workCentre || 'Unknown',
+    order: order.order_number,
+    location: order.work_centre_name || 'Unknown',
     time: "2h ago", // Mock time
   }))
 
@@ -106,7 +106,7 @@ export function DashboardOverview({ metrics, recentOrders, onNavigate }: Dashboa
           <CardContent className="space-y-4">
             <div className="flex justify-between">
               <span className="text-gray-600">Orders in Progress</span>
-              <span className="font-semibold">{recentOrders.filter((o) => o.status === "in-progress").length}</span>
+              <span className="font-semibold">{recentOrders.filter((o) => o.status === "in_progress").length}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Completed Today</span>
@@ -122,7 +122,7 @@ export function DashboardOverview({ metrics, recentOrders, onNavigate }: Dashboa
               <span className="text-gray-600">Average Progress</span>
               <span className="font-semibold">
                 {Math.round(
-                  recentOrders.reduce((acc, order) => acc + (order.quantityCompleted / order.quantityToMake) * 100, 0) /
+                  recentOrders.reduce((acc, order) => acc + (order.quantity_completed / order.quantity_to_make) * 100, 0) /
                     recentOrders.length,
                 )}
                 %

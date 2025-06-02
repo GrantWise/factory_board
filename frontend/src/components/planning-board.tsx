@@ -39,7 +39,7 @@ import { useDragAndDrop } from "@/hooks/use-drag-and-drop"
 import { workCentresService } from "@/lib/api-services"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
-import type { LegacyManufacturingOrder, LegacyWorkCentre } from "@/types/manufacturing"
+import type { ManufacturingOrder, WorkCentre } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 import {
   DndContext,
@@ -64,14 +64,12 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 
 interface PlanningBoardProps {
-  /** Manufacturing orders in legacy format for display */
-  orders: LegacyManufacturingOrder[]
-  /** Work centres in legacy format for display */
-  workCentres: LegacyWorkCentre[]
-  /** Original API work centres data for ID mapping during updates */
-  originalWorkCentres?: any[]
+  /** Manufacturing orders in API format for display */
+  orders: ManufacturingOrder[]
+  /** Work centres in API format for display */
+  workCentres: WorkCentre[]
   /** Callback when an order is moved between work centres */
-  onOrderMove?: (orderId: string, newWorkCentre: string) => void
+  onOrderMove?: (orderId: number, newWorkCentreId: number) => void
   /** Callback for page navigation */
   onNavigate?: (page: string) => void
   /** Callback to refresh work centres data after reordering */
@@ -95,7 +93,7 @@ function DraggableWorkCentreItem({
   index, 
   jobCount 
 }: { 
-  workCentre: LegacyWorkCentre
+  workCentre: WorkCentre
   index: number
   jobCount: number
 }) {
@@ -151,7 +149,7 @@ function DraggableOrderCard({
   lockedBy,
   isDragging 
 }: { 
-  order: LegacyManufacturingOrder
+  order: ManufacturingOrder
   isLocked: boolean
   lockedBy?: string
   isDragging: boolean
@@ -215,16 +213,16 @@ function DroppableWorkCentre({
   setClearJobsWorkCentre,
   getOrdersForWorkCentre
 }: {
-  workCentre: LegacyWorkCentre
-  orders: LegacyManufacturingOrder[]
+  workCentre: WorkCentre
+  orders: ManufacturingOrder[]
   isOver: boolean
-  isOrderLocked: (orderId: string) => boolean
-  getOrderLockInfo: (orderId: string) => string
-  activeOrderId: string | null
+  isOrderLocked: (orderId: number) => boolean
+  getOrderLockInfo: (orderId: number) => string
+  activeOrderId: number | null
   onNavigate?: (page: string) => void
-  setViewDetailsWorkCentre: (workCentre: LegacyWorkCentre) => void
-  setClearJobsWorkCentre: (workCentre: LegacyWorkCentre) => void
-  getOrdersForWorkCentre: (workCentreId: string) => LegacyManufacturingOrder[]
+  setViewDetailsWorkCentre: (workCentre: WorkCentre) => void
+  setClearJobsWorkCentre: (workCentre: WorkCentre) => void
+  getOrdersForWorkCentre: (workCentreId: number) => ManufacturingOrder[]
 }) {
   const {
     setNodeRef,
@@ -306,7 +304,7 @@ function DroppableWorkCentre({
   )
 }
 
-export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrderMove, onNavigate, onWorkCentreUpdate }: PlanningBoardProps) {
+export function PlanningBoard({ orders, workCentres, onOrderMove, onNavigate, onWorkCentreUpdate }: PlanningBoardProps) {
   const { user, hasPermission } = useAuth()
   const { connectedUsers, lockedOrders, isConnected } = useWebSocket(currentUser)
   const { handleDragStart, handleDragEnd, handleDragOver, activeOrderId } = useDragAndDrop({ 
@@ -317,15 +315,15 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
   const [overId, setOverId] = useState<string | null>(null)
   const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const [isAddWorkCentreDialogOpen, setIsAddWorkCentreDialogOpen] = useState(false)
-  const [viewDetailsWorkCentre, setViewDetailsWorkCentre] = useState<LegacyWorkCentre | null>(null)
-  const [clearJobsWorkCentre, setClearJobsWorkCentre] = useState<LegacyWorkCentre | null>(null)
-  const [workCentreOrder, setWorkCentreOrder] = useState<LegacyWorkCentre[]>(() => 
-    [...workCentres].sort((a, b) => a.order - b.order)
+  const [viewDetailsWorkCentre, setViewDetailsWorkCentre] = useState<WorkCentre | null>(null)
+  const [clearJobsWorkCentre, setClearJobsWorkCentre] = useState<WorkCentre | null>(null)
+  const [workCentreOrder, setWorkCentreOrder] = useState<WorkCentre[]>(() => 
+    [...workCentres].sort((a, b) => a.display_order - b.display_order)
   )
 
   // Sync workCentreOrder when workCentres prop changes (e.g., after reorder)
   useEffect(() => {
-    setWorkCentreOrder([...workCentres].sort((a, b) => a.order - b.order))
+    setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
   }, [workCentres])
 
   /**
@@ -346,25 +344,14 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
       
       const newItems = arrayMove(items, oldIndex, newIndex)
       
-      // Update the order property
+      // Update the display_order property
       return newItems.map((item, index) => ({
         ...item,
-        order: index + 1
+        display_order: index + 1
       }))
     })
   }
 
-  /**
-   * Maps legacy work centre code ID to numeric API ID
-   * Required for API calls that expect numeric IDs
-   * @param codeId - Legacy string-based work centre ID
-   * @returns Numeric ID for API calls or null if not found
-   */
-  const findNumericId = (codeId: string): number | null => {
-    if (!originalWorkCentres) return null
-    const workCentre = originalWorkCentres.find((wc: any) => wc.code === codeId)
-    return workCentre ? workCentre.id : null
-  }
 
   /**
    * Persists work centre column order to backend
@@ -384,25 +371,17 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
         return
       }
 
-      if (!originalWorkCentres) {
-        toast.error('Cannot save order - missing work centre data')
-        return
-      }
-
       console.log('User:', user)
       console.log('Has work_centres:write permission:', hasPermission('work_centres:write'))
-      console.log('Original work centres:', originalWorkCentres)
       console.log('Work centre order:', workCentreOrder)
 
-      // Map legacy work centres to API format for reordering
+      // Map work centres to API format for reordering
       const reorderData = workCentreOrder
         .map((wc) => {
-          const numericId = findNumericId(wc.id)
-          console.log(`Mapping ${wc.id} (${wc.name}) to numeric ID:`, numericId, 'order:', wc.order)
-          console.log('Types:', typeof numericId, typeof wc.order)
-          return numericId ? { id: Number(numericId), display_order: Number(wc.order) } : null
+          console.log(`Mapping ${wc.id} (${wc.name}) order:`, wc.display_order)
+          console.log('Types:', typeof wc.id, typeof wc.display_order)
+          return { id: Number(wc.id), display_order: Number(wc.display_order) }
         })
-        .filter(Boolean) as { id: number; display_order: number }[]
 
       console.log('Reorder data to send:', reorderData)
       console.log('Reorder data JSON:', JSON.stringify(reorderData, null, 2))
@@ -485,16 +464,16 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
     })
   )
 
-  const getOrdersForWorkCentre = (workCentreId: string) => {
-    return orders.filter((order) => order.workCentre === workCentreId)
+  const getOrdersForWorkCentre = (workCentreId: number) => {
+    return orders.filter((order) => order.current_work_centre_id === workCentreId)
   }
 
-  const isOrderLocked = (orderId: string) => {
-    return lockedOrders.has(orderId)
+  const isOrderLocked = (orderId: number) => {
+    return lockedOrders.has(orderId.toString())
   }
 
-  const getOrderLockInfo = (orderId: string) => {
-    const lockingUser = connectedUsers.find((user) => user.lockingOrder === orderId)
+  const getOrderLockInfo = (orderId: number) => {
+    const lockingUser = connectedUsers.find((user) => user.lockingOrder === orderId.toString())
     return lockingUser ? lockingUser.userName : "Another user"
   }
 
@@ -509,9 +488,9 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
     handleDragEnd(event)
   }
 
-  // Sort work centres by order
-  const sortedWorkCentres = [...workCentres].sort((a, b) => a.order - b.order)
-  const activeWorkCentres = sortedWorkCentres.filter((workCentre) => workCentre.status === "active")
+  // Sort work centres by display_order
+  const sortedWorkCentres = [...workCentres].sort((a, b) => a.display_order - b.display_order)
+  const activeWorkCentres = sortedWorkCentres.filter((workCentre) => workCentre.is_active)
   const workCentreIds = activeWorkCentres.map(wc => wc.id)
 
   // Find the active order for drag overlay
@@ -574,7 +553,7 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                   <Button 
                     variant="outline"
                     onClick={() => {
-                      setWorkCentreOrder([...workCentres].sort((a, b) => a.order - b.order))
+                      setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
                       setIsConfigureDialogOpen(false)
                     }}
                     className="flex-1"
@@ -642,11 +621,11 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                     <div className="flex justify-between">
                       <span className="text-gray-600">Status:</span>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        viewDetailsWorkCentre.status === 'active' 
+                        viewDetailsWorkCentre.is_active 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {viewDetailsWorkCentre.status === 'active' ? '🟢 Active' : '🔴 Inactive'}
+                        {viewDetailsWorkCentre.is_active ? '🟢 Active' : '🔴 Inactive'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -655,12 +634,12 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Current Jobs:</span>
-                      <span className="font-medium">{viewDetailsWorkCentre.currentJobs} jobs</span>
+                      <span className="font-medium">{viewDetailsWorkCentre.current_jobs} jobs</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Utilization:</span>
                       <span className="font-medium">
-                        {Math.round((viewDetailsWorkCentre.currentJobs / viewDetailsWorkCentre.capacity) * 100)}%
+                        {Math.round((viewDetailsWorkCentre.current_jobs / viewDetailsWorkCentre.capacity) * 100)}%
                       </span>
                     </div>
                   </div>
@@ -672,7 +651,7 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                     {viewDetailsWorkCentre.machines.length > 0 ? (
                       viewDetailsWorkCentre.machines.map((machine, index) => (
                         <div key={index} className="px-2 py-1 bg-gray-100 rounded text-sm">
-                          {machine}
+                          {machine.name}
                         </div>
                       ))
                     ) : (
@@ -691,15 +670,15 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                       {getOrdersForWorkCentre(viewDetailsWorkCentre.id).map((order) => (
                         <div key={order.id} className="flex items-center justify-between p-3 border-b last:border-b-0">
                           <div>
-                            <p className="font-medium text-sm">{order.orderNumber}</p>
-                            <p className="text-xs text-gray-600">{order.stockCode} - {order.description}</p>
+                            <p className="font-medium text-sm">{order.order_number}</p>
+                            <p className="text-xs text-gray-600">{order.stock_code} - {order.description}</p>
                           </div>
                           <div className="text-right">
                             <div className="text-sm">
-                              {order.quantityCompleted}/{order.quantityToMake}
+                              {order.quantity_completed}/{order.quantity_to_make}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {Math.round((order.quantityCompleted / order.quantityToMake) * 100)}% complete
+                              {Math.round((order.quantity_completed / order.quantity_to_make) * 100)}% complete
                             </div>
                           </div>
                         </div>
@@ -776,8 +755,8 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
                       
                       // Move all orders to "unassigned" status
                       for (const order of ordersToMove) {
-                        // Use the existing onOrderMove function with a special "unassigned" work centre
-                        await onOrderMove?.(order.id, 'unassigned')
+                        // Use the existing onOrderMove function with null work centre ID for unassigned
+                        await onOrderMove?.(order.id, 0) // 0 or null for unassigned
                       }
                       
                       setClearJobsWorkCentre(null)
@@ -815,7 +794,7 @@ export function PlanningBoard({ orders, workCentres, originalWorkCentres, onOrde
           <SortableContext items={workCentreIds} strategy={verticalListSortingStrategy}>
             {activeWorkCentres.map((workCentre) => {
               const workCentreOrders = getOrdersForWorkCentre(workCentre.id)
-              const isOver = overId === workCentre.id
+              const isOver = overId === workCentre.id.toString()
 
               return (
                 <DroppableWorkCentre

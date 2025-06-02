@@ -1,142 +1,126 @@
-import type { ManufacturingOrder, WorkCentre, DashboardMetrics, Machine } from "@/types/manufacturing"
+import type { ManufacturingOrder, WorkCentre, DashboardMetrics } from "@/types/manufacturing"
 
 export const sampleOrders: ManufacturingOrder[] = [
   {
     id: 1,
-    orderNumber: "MO-2024-001",
-    stockCode: "WIDGET-A01",
+    order_number: "MO-2024-001",
+    stock_code: "WIDGET-A01",
     description: "Premium Widget Assembly",
-    quantityToMake: 500,
-    quantityCompleted: 150,
-    currentOperation: "Drilling",
-    currentStep: "Assembly",
-    workCentreId: 2,
-    workCentreCode: "ASSEMBLY-01",
-    workCentreName: "Assembly",
+    quantity_to_make: 500,
+    quantity_completed: 150,
+    current_operation: "Drilling",
+    current_step: "Assembly",
+    work_centre_id: 2,
+    work_centre_code: "ASSEMBLY-01",
+    work_centre_name: "Assembly",
     status: "in_progress",
     priority: "high",
-    dueDate: "2024-06-15",
-    startDate: "2024-06-01",
-    createdBy: 1,
-    createdByUsername: "admin",
-    manufacturingSteps: [
+    due_date: "2024-06-15",
+    start_date: "2024-06-01",
+    created_by: 1,
+    created_by_username: "admin",
+    manufacturing_steps: [
       { 
-        id: 1, stepNumber: 1, step: "Cutting", operation: "Rough Cut", 
-        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
-        status: "complete", quantityCompleted: 500 
+        id: 1, step_number: 1, step: "Cutting", operation: "Rough Cut", 
+        work_centre_id: 1, work_centre_code: "CUT-01", work_centre_name: "Cutting",
+        status: "complete", quantity_completed: 500 
       },
       { 
-        id: 2, stepNumber: 2, step: "Assembly", operation: "Drilling", 
-        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
-        status: "in_progress", quantityCompleted: 150 
+        id: 2, step_number: 2, step: "Assembly", operation: "Drilling", 
+        work_centre_id: 2, work_centre_code: "ASSEMBLY-01", work_centre_name: "Assembly",
+        status: "in_progress", quantity_completed: 150 
       },
       { 
-        id: 3, stepNumber: 3, step: "Quality Check", operation: "Inspection", 
-        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
-        status: "pending", quantityCompleted: 0 
+        id: 3, step_number: 3, step: "Quality Check", operation: "Inspection", 
+        work_centre_id: 3, work_centre_code: "QC-01", work_centre_name: "Quality Control",
+        status: "pending", quantity_completed: 0 
       },
       { 
-        id: 4, stepNumber: 4, step: "Packaging", operation: "Final Pack", 
-        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
-        status: "pending", quantityCompleted: 0 
+        id: 4, step_number: 4, step: "Packaging", operation: "Final Pack", 
+        work_centre_id: 4, work_centre_code: "PACK-01", work_centre_name: "Packaging",
+        status: "pending", quantity_completed: 0 
       },
     ],
   },
   {
     id: 2,
-    orderNumber: "MO-2024-002",
-    stockCode: "GEAR-B02",
+    order_number: "MO-2024-002",
+    stock_code: "GEAR-B02",
     description: "Industrial Gear Set",
-    quantityToMake: 200,
-    quantityCompleted: 200,
-    currentOperation: "Final Pack",
-    currentStep: "Packaging",
-    workCentreId: 4,
-    workCentreCode: "PACK-01",
-    workCentreName: "Packaging",
+    quantity_to_make: 200,
+    quantity_completed: 200,
+    current_operation: "Final Inspection",
+    current_step: "Quality Control",
+    work_centre_id: 3,
+    work_centre_code: "QC-01", 
+    work_centre_name: "Quality Control",
     status: "complete",
     priority: "medium",
-    dueDate: "2024-06-10",
-    startDate: "2024-05-25",
-    createdBy: 1,
-    createdByUsername: "admin",
-    manufacturingSteps: [
+    due_date: "2024-06-10",
+    start_date: "2024-05-25",
+    completion_date: "2024-06-08",
+    created_by: 1,
+    created_by_username: "admin",
+    manufacturing_steps: [
       { 
-        id: 5, stepNumber: 1, step: "Cutting", operation: "Precision Cut", 
-        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
-        status: "complete", quantityCompleted: 200 
+        id: 5, step_number: 1, step: "Machining", operation: "CNC Milling", 
+        work_centre_id: 5, work_centre_code: "MACH-01", work_centre_name: "Machining",
+        status: "complete", quantity_completed: 200 
       },
       { 
-        id: 6, stepNumber: 2, step: "Assembly", operation: "Gear Assembly", 
-        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
-        status: "complete", quantityCompleted: 200 
+        id: 6, step_number: 2, step: "Heat Treatment", operation: "Annealing", 
+        work_centre_id: 6, work_centre_code: "HEAT-01", work_centre_name: "Heat Treatment",
+        status: "complete", quantity_completed: 200 
       },
       { 
-        id: 7, stepNumber: 3, step: "Quality Check", operation: "Inspection", 
-        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
-        status: "complete", quantityCompleted: 200 
-      },
-      { 
-        id: 8, stepNumber: 4, step: "Packaging", operation: "Final Pack", 
-        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
-        status: "complete", quantityCompleted: 200 
+        id: 7, step_number: 3, step: "Quality Control", operation: "Final Inspection", 
+        work_centre_id: 3, work_centre_code: "QC-01", work_centre_name: "Quality Control",
+        status: "complete", quantity_completed: 200 
       },
     ],
   },
   {
     id: 3,
-    orderNumber: "MO-2024-003",
-    stockCode: "MOTOR-C03",
-    description: "Electric Motor Unit",
-    quantityToMake: 100,
-    quantityCompleted: 0,
-    currentOperation: "Rough Cut",
-    currentStep: "Cutting",
-    workCentreId: 1,
-    workCentreCode: "CUT-01",
-    workCentreName: "Cutting",
+    order_number: "MO-2024-003",
+    stock_code: "FRAME-C03",
+    description: "Steel Frame Component",
+    quantity_to_make: 100,
+    quantity_completed: 0,
+    work_centre_id: 1,
+    work_centre_code: "CUT-01",
+    work_centre_name: "Cutting",
     status: "not_started",
     priority: "low",
-    dueDate: "2024-06-20",
-    startDate: "2024-06-05",
-    createdBy: 1,
-    createdByUsername: "admin",
-    manufacturingSteps: [
+    due_date: "2024-06-25",
+    start_date: "2024-06-20",
+    created_by: 2,
+    created_by_username: "scheduler",
+    manufacturing_steps: [
       { 
-        id: 9, stepNumber: 1, step: "Cutting", operation: "Rough Cut", 
-        workCentreId: 1, workCentreCode: "CUT-01", workCentreName: "Cutting",
-        status: "pending", quantityCompleted: 0 
+        id: 8, step_number: 1, step: "Cutting", operation: "Plasma Cut", 
+        work_centre_id: 1, work_centre_code: "CUT-01", work_centre_name: "Cutting",
+        status: "pending", quantity_completed: 0 
       },
       { 
-        id: 10, stepNumber: 2, step: "Assembly", operation: "Motor Assembly", 
-        workCentreId: 2, workCentreCode: "ASSEMBLY-01", workCentreName: "Assembly",
-        status: "pending", quantityCompleted: 0 
-      },
-      { 
-        id: 11, stepNumber: 3, step: "Quality Check", operation: "Testing", 
-        workCentreId: 3, workCentreCode: "QC-01", workCentreName: "Quality Control",
-        status: "pending", quantityCompleted: 0 
-      },
-      { 
-        id: 12, stepNumber: 4, step: "Packaging", operation: "Motor Pack", 
-        workCentreId: 4, workCentreCode: "PACK-01", workCentreName: "Packaging",
-        status: "pending", quantityCompleted: 0 
+        id: 9, step_number: 2, step: "Welding", operation: "MIG Weld", 
+        work_centre_id: 7, work_centre_code: "WELD-01", work_centre_name: "Welding",
+        status: "pending", quantity_completed: 0 
       },
     ],
   },
 ]
 
-export const workCentres: WorkCentre[] = [
+export const sampleWorkCentres: WorkCentre[] = [
   {
     id: 1,
-    code: "CUT-01",
     name: "Cutting",
-    capacity: 5,
+    code: "CUT-01",
+    description: "Primary cutting operations",
+    capacity: 10,
     current_jobs: 3,
     machines: [
-      { id: 1, code: "CUT-01", name: "Cutting Machine 1", is_active: 1 },
-      { id: 2, code: "CUT-02", name: "Cutting Machine 2", is_active: 1 },
-      { id: 3, code: "CUT-03", name: "Cutting Machine 3", is_active: 1 }
+      { id: 1, name: "Plasma Cutter 1", code: "PC-001", is_active: 1 },
+      { id: 2, name: "Laser Cutter", code: "LC-001", is_active: 1 }
     ],
     is_active: 1,
     display_order: 1,
@@ -145,13 +129,14 @@ export const workCentres: WorkCentre[] = [
   },
   {
     id: 2,
-    code: "ASSEMBLY-01",
     name: "Assembly",
+    code: "ASSEMBLY-01",
+    description: "Main assembly line",
     capacity: 8,
-    current_jobs: 5,
+    current_jobs: 2,
     machines: [
-      { id: 4, code: "ASM-01", name: "Assembly Machine 1", is_active: 1 },
-      { id: 5, code: "ASM-02", name: "Assembly Machine 2", is_active: 1 }
+      { id: 3, name: "Assembly Station 1", code: "AS-001", is_active: 1 },
+      { id: 4, name: "Assembly Station 2", code: "AS-002", is_active: 1 }
     ],
     is_active: 1,
     display_order: 2,
@@ -160,14 +145,13 @@ export const workCentres: WorkCentre[] = [
   },
   {
     id: 3,
-    code: "QC-01",
     name: "Quality Control",
+    code: "QC-01",
+    description: "Quality inspection and testing",
     capacity: 5,
-    current_jobs: 2,
+    current_jobs: 1,
     machines: [
-      { id: 6, code: "QC-01", name: "QC Machine 1", is_active: 1 },
-      { id: 7, code: "QC-02", name: "QC Machine 2", is_active: 1 },
-      { id: 8, code: "QC-03", name: "QC Machine 3", is_active: 1 }
+      { id: 5, name: "CMM Machine", code: "CMM-001", is_active: 1 }
     ],
     is_active: 1,
     display_order: 3,
@@ -176,13 +160,13 @@ export const workCentres: WorkCentre[] = [
   },
   {
     id: 4,
-    code: "PACK-01",
     name: "Packaging",
+    code: "PACK-01",
+    description: "Final packaging operations",
     capacity: 6,
-    current_jobs: 1,
+    current_jobs: 0,
     machines: [
-      { id: 9, code: "PACK-01", name: "Packaging Machine 1", is_active: 1 },
-      { id: 10, code: "PACK-02", name: "Packaging Machine 2", is_active: 1 }
+      { id: 6, name: "Packing Station 1", code: "PS-001", is_active: 1 }
     ],
     is_active: 1,
     display_order: 4,
@@ -191,12 +175,14 @@ export const workCentres: WorkCentre[] = [
   },
   {
     id: 5,
-    code: "SHIP-01",
-    name: "Shipping",
+    name: "Machining",
+    code: "MACH-01",
+    description: "CNC machining operations",
     capacity: 4,
-    current_jobs: 0,
+    current_jobs: 1,
     machines: [
-      { id: 11, code: "SHIP-01", name: "Shipping Machine 1", is_active: 1 }
+      { id: 7, name: "CNC Mill 1", code: "CNC-001", is_active: 1 },
+      { id: 8, name: "CNC Lathe 1", code: "CNC-002", is_active: 1 }
     ],
     is_active: 1,
     display_order: 5,
@@ -206,11 +192,11 @@ export const workCentres: WorkCentre[] = [
 ]
 
 export const dashboardMetrics: DashboardMetrics = {
-  totalActiveOrders: 5,
-  completionRate: 87.5,
-  workCentreUtilization: 68.8,
-  dailyProduction: 245,
-  dailyTarget: 300,
-  overdueOrders: 1,
-  averageCycleTime: 12.5,
+  total_active_orders: 5,
+  completion_rate: 87.5,
+  work_centre_utilization: 68.8,
+  daily_production: 245,
+  daily_target: 300,
+  overdue_orders: 1,
+  average_cycle_time: 12.5,
 }

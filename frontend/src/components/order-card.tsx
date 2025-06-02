@@ -3,28 +3,28 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Package, Wrench, Lock } from "lucide-react"
-import type { LegacyManufacturingOrder } from "@/types/manufacturing"
+import type { ManufacturingOrder } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 
 interface OrderCardProps {
-  order: LegacyManufacturingOrder
+  order: ManufacturingOrder
   isDragging?: boolean
   isLocked?: boolean
   lockedBy?: string
 }
 
 export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardProps) {
-  const completionPercentage = (order.quantityCompleted / order.quantityToMake) * 100
+  const completionPercentage = (order.quantity_completed / order.quantity_to_make) * 100
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "not-started":
+      case "not_started":
         return (
           <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-100">
             Not Started
           </Badge>
         )
-      case "in-progress":
+      case "in_progress":
         return <Badge className="text-xs bg-blue-500 hover:bg-blue-500">In Progress</Badge>
       case "complete":
         return <Badge className="text-xs bg-green-500 hover:bg-green-500">Complete</Badge>
@@ -50,7 +50,7 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
 
   const getDueDays = () => {
     const today = new Date()
-    const dueDate = new Date(order.dueDate || '')
+    const dueDate = new Date(order.due_date || '')
     const diffTime = dueDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
@@ -71,7 +71,7 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
       <CardContent className="p-4 space-y-3">
         {/* Header with Order Number and Status */}
         <div className="flex items-start justify-between">
-          <h3 className="font-semibold text-gray-900">{order.orderNumber}</h3>
+          <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
           {isLocked ? (
             <div className="flex items-center gap-1 text-red-600">
               <Lock className="h-3 w-3" />
@@ -88,11 +88,11 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
           <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <Package className="h-3 w-3" />
-              <span>{order.stockCode}</span>
+              <span>{order.stock_code}</span>
             </div>
             <div className="flex items-center gap-1">
               <span>
-                {order.quantityCompleted} / {order.quantityToMake}
+                {order.quantity_completed} / {order.quantity_to_make}
               </span>
             </div>
           </div>
@@ -119,7 +119,7 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
         <div className="flex items-center gap-1 text-sm">
           <Wrench className="h-3 w-3 text-gray-500" />
           <span className="text-gray-600">Op:</span>
-          <span className="font-medium text-gray-900">{order.currentOperation}</span>
+          <span className="font-medium text-gray-900">{order.current_operation}</span>
         </div>
 
         {/* Time indicator */}

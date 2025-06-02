@@ -38,18 +38,16 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical, Power, Edit } from "lucide-react"
-import type { LegacyWorkCentre, WorkCentre } from "@/types/manufacturing"
+import type { WorkCentre } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 import { workCentresService } from "@/lib/api-services"
 import { toast } from "sonner"
 
 interface WorkCentresManagementProps {
-  /** Work centres in legacy format for display */
-  workCentres: LegacyWorkCentre[]
-  /** Original API work centres data for ID mapping */
-  originalWorkCentres?: WorkCentre[]
+  /** Work centres in API format for display */
+  workCentres: WorkCentre[]
   /** Callback triggered after work centre modifications to refresh data */
-  onWorkCentreUpdate?: (workCentres: LegacyWorkCentre[]) => void
+  onWorkCentreUpdate?: () => void
 }
 
 /**
@@ -58,28 +56,18 @@ interface WorkCentresManagementProps {
  * Required because UI uses legacy format while API expects numeric IDs
  */
 
-export function WorkCentresManagement({ workCentres, originalWorkCentres, onWorkCentreUpdate }: WorkCentresManagementProps) {
-  const [centres, setCentres] = useState<LegacyWorkCentre[]>(workCentres)
+export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkCentresManagementProps) {
+  const [centres, setCentres] = useState<WorkCentre[]>(workCentres)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingCentre, setEditingCentre] = useState<LegacyWorkCentre | null>(null)
-  const [draggedCentre, setDraggedCentre] = useState<string | null>(null)
+  const [editingCentre, setEditingCentre] = useState<WorkCentre | null>(null)
+  const [draggedCentre, setDraggedCentre] = useState<number | null>(null)
 
-  /**
-   * Maps legacy work centre code ID to numeric API ID
-   * @param codeId - Legacy string-based work centre ID
-   * @returns Numeric ID for API calls or null if not found
-   */
-  const findNumericId = (codeId: string): number | null => {
-    if (!originalWorkCentres) return null
-    const workCentre = originalWorkCentres.find(wc => wc.code === codeId)
-    return workCentre ? workCentre.id : null
-  }
 
   const [newCentre, setNewCentre] = useState({
     name: "",
     capacity: 5,
     machines: "",
-    status: "active" as "active" | "inactive",
+    is_active: true,
   })
 
   /**
@@ -152,9 +140,9 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
       // Note: This would need additional API calls for each machine
       // For now, we'll handle this in a future enhancement
       
-      onWorkCentreUpdate?.(centres) // Trigger refresh
+      onWorkCentreUpdate?.() // Trigger refresh
       setIsAddDialogOpen(false)
-      setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
       toast.success('Work centre created successfully')
     } catch (error: any) {
       toast.error(error.error || 'Failed to create work centre')
@@ -165,13 +153,13 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
    * Initiates work centre editing by populating form with current values
    * @param centre - Work centre to edit
    */
-  const handleEditCentre = (centre: LegacyWorkCentre) => {
+  const handleEditCentre = (centre: WorkCentre) => {
     setEditingCentre(centre)
     setNewCentre({
       name: centre.name,
       capacity: centre.capacity,
-      machines: centre.machines.join(", "),
-      status: centre.status,
+      machines: centre.machines.map(m => m.name).join(", "),
+      is_active: Boolean(centre.is_active),
     })
   }
 
@@ -234,25 +222,17 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
         }
       }
 
-      // Find the numeric ID for the API call
-      const numericId = findNumericId(editingCentre.id)
-      
-      if (!numericId) {
-        toast.error('Work centre not found in system')
-        return
-      }
-
       const updates = {
         name: trimmedName,
         capacity: newCentre.capacity,
-        is_active: newCentre.status === 'active' ? 1 : 0,
+        is_active: newCentre.is_active ? 1 : 0,
       }
 
-      await workCentresService.update(numericId, updates)
+      await workCentresService.update(editingCentre.id, updates)
 
-      onWorkCentreUpdate?.(centres) // Trigger refresh from API
+      onWorkCentreUpdate?.() // Trigger refresh from API
       setEditingCentre(null)
-      setNewCentre({ name: "", capacity: 5, machines: "", status: "active" })
+      setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
       toast.success('Work centre updated successfully')
     } catch (error: any) {
       toast.error(error.error || 'Failed to update work centre')
@@ -261,25 +241,17 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
 
   /**
    * Deletes work centre after user confirmation
-   * @param centreId - Legacy work centre ID to delete
+   * @param centreId - Work centre ID to delete
    */
-  const handleDeleteCentre = async (centreId: string) => {
+  const handleDeleteCentre = async (centreId: number) => {
     try {
       if (!confirm('Are you sure you want to delete this work centre? This action cannot be undone.')) {
         return
       }
 
-      // Find the numeric ID for the API call
-      const numericId = findNumericId(centreId)
-      
-      if (!numericId) {
-        toast.error('Work centre not found in system')
-        return
-      }
+      await workCentresService.delete(centreId)
 
-      await workCentresService.delete(numericId)
-
-      onWorkCentreUpdate?.(centres) // Trigger refresh from API
+      onWorkCentreUpdate?.() // Trigger refresh from API
       toast.success('Work centre deleted successfully')
     } catch (error: any) {
       toast.error(error.error || 'Failed to delete work centre')
@@ -288,9 +260,9 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
 
   /**
    * Toggles work centre active/inactive status
-   * @param centreId - Legacy work centre ID to toggle
+   * @param centreId - Work centre ID to toggle
    */
-  const handleToggleStatus = async (centreId: string) => {
+  const handleToggleStatus = async (centreId: number) => {
     try {
       // Find the work centre to toggle
       const centre = centres.find(c => c.id === centreId)
@@ -299,24 +271,16 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
         return
       }
 
-      // Find the numeric ID for the API call
-      const numericId = findNumericId(centreId)
-      
-      if (!numericId) {
-        toast.error('Work centre not found in system')
-        return
-      }
-
-      const newStatus = centre.status === "active" ? "inactive" : "active"
+      const newIsActive = !centre.is_active
       
       const updates = {
-        is_active: newStatus === 'active' ? 1 : 0,
+        is_active: newIsActive ? 1 : 0,
       }
 
-      await workCentresService.update(numericId, updates)
+      await workCentresService.update(centreId, updates)
 
-      onWorkCentreUpdate?.(centres) // Trigger refresh from API
-      toast.success(`Work centre ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`)
+      onWorkCentreUpdate?.() // Trigger refresh from API
+      toast.success(`Work centre ${newIsActive ? 'activated' : 'deactivated'} successfully`)
     } catch (error: any) {
       toast.error(error.error || 'Failed to update work centre status')
     }
@@ -327,9 +291,9 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
    * @param e - Drag event
    * @param centreId - ID of work centre being dragged
    */
-  const handleDragStart = (e: React.DragEvent, centreId: string) => {
+  const handleDragStart = (e: React.DragEvent, centreId: number) => {
     setDraggedCentre(centreId)
-    e.dataTransfer.setData("text/plain", centreId)
+    e.dataTransfer.setData("text/plain", centreId.toString())
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -342,9 +306,9 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
    * @param e - Drop event
    * @param targetCentreId - ID of drop target work centre
    */
-  const handleDrop = (e: React.DragEvent, targetCentreId: string) => {
+  const handleDrop = (e: React.DragEvent, targetCentreId: number) => {
     e.preventDefault()
-    const draggedCentreId = e.dataTransfer.getData("text/plain")
+    const draggedCentreId = parseInt(e.dataTransfer.getData("text/plain"))
 
     if (draggedCentreId === targetCentreId) return
 
@@ -355,18 +319,18 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
     const [draggedCentre] = newCentres.splice(draggedIndex, 1)
     newCentres.splice(targetIndex, 0, draggedCentre)
 
-    // Update order values
+    // Update display_order values
     const updatedCentres = newCentres.map((centre, index) => ({
       ...centre,
-      order: index + 1,
+      display_order: index + 1,
     }))
 
     setCentres(updatedCentres)
-    onWorkCentreUpdate?.(updatedCentres)
+    onWorkCentreUpdate?.()
     setDraggedCentre(null)
   }
 
-  const sortedCentres = [...centres].sort((a, b) => a.order - b.order)
+  const sortedCentres = [...centres].sort((a, b) => a.display_order - b.display_order)
 
   return (
     <div className="space-y-6">
@@ -419,8 +383,8 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
               <div>
                 <Label htmlFor="status">Status</Label>
                 <Select
-                  value={newCentre.status}
-                  onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, status: value })}
+                  value={newCentre.is_active ? "active" : "inactive"}
+                  onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, is_active: value === "active" })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -445,7 +409,7 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
             key={centre.id}
             className={cn(
               "transition-all duration-200 hover:shadow-md",
-              centre.status === "inactive" && "opacity-60",
+              !centre.is_active && "opacity-60",
               draggedCentre === centre.id && "opacity-50 rotate-1",
             )}
             draggable
@@ -469,7 +433,7 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
                     onClick={() => handleToggleStatus(centre.id)}
                     className="h-6 w-6 p-0"
                   >
-                    <Power className={cn("h-3 w-3", centre.status === "active" ? "text-green-600" : "text-gray-400")} />
+                    <Power className={cn("h-3 w-3", centre.is_active ? "text-green-600" : "text-gray-400")} />
                   </Button>
                   <Button
                     variant="ghost"
@@ -490,16 +454,16 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Currently:</span>
-                  <span className="font-medium">{centre.currentJobs} active jobs</span>
+                  <span className="font-medium">{centre.current_jobs} active jobs</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Machines:</span>
-                  <span className="font-medium text-right">{centre.machines.join(", ")}</span>
+                  <span className="font-medium text-right">{centre.machines.map(m => m.name).join(", ")}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Status:</span>
-                  <Badge variant={centre.status === "active" ? "default" : "secondary"}>
-                    {centre.status === "active" ? "🟢 Active" : "🔴 Inactive"}
+                  <Badge variant={centre.is_active ? "default" : "secondary"}>
+                    {centre.is_active ? "🟢 Active" : "🔴 Inactive"}
                   </Badge>
                 </div>
               </div>
@@ -543,8 +507,8 @@ export function WorkCentresManagement({ workCentres, originalWorkCentres, onWork
             <div>
               <Label htmlFor="edit-status">Status</Label>
               <Select
-                value={newCentre.status}
-                onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, status: value })}
+                value={newCentre.is_active ? "active" : "inactive"}
+                onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, is_active: value === "active" })}
               >
                 <SelectTrigger>
                   <SelectValue />
