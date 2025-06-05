@@ -76,6 +76,12 @@ router.post('/import',
   OrdersController.importOrders
 );
 
+// POST /api/orders/reorder - Reorder orders within a work centre
+router.post('/reorder', 
+  requirePermission('orders:move'),
+  OrdersController.reorderOrders
+);
+
 // Manufacturing steps routes
 // GET /api/orders/:id/steps
 router.get('/:id/steps', 

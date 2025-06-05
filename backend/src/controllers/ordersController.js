@@ -200,23 +200,48 @@ class OrdersController {
         });
       }
 
-      ManufacturingOrder.delete(orderId);
+      // Debug: Log related records before deletion
+      const steps = ManufacturingStep.findByOrderId(orderId);
+      const auditLogs = AuditLog.findAll({ order_id: orderId });
+      const scannerEvents = require('../utils/database').getDatabase().prepare('SELECT * FROM scanner_events WHERE order_id = ?').all(orderId);
+      console.log('[DEBUG] Related steps:', steps);
+      console.log('[DEBUG] Related audit logs:', auditLogs);
+      console.log('[DEBUG] Related scanner events:', scannerEvents);
 
-      // Log the deletion
-      AuditLog.create({
-        event_type: 'order_deleted',
-        order_id: orderId,
-        user_id: req.user.id,
-        event_data: {
-          order_number: order.orderNumber,
-          stock_code: order.stockCode,
-          deleted_by: req.user.username
-        }
-      });
-
-      res.json({
-        message: 'Order deleted successfully'
-      });
+      // Business rule: Only hard delete if not_started, otherwise soft delete (set status to cancelled)
+      if (order.status === 'not_started') {
+        ManufacturingOrder.delete(orderId);
+        // Log the deletion
+        AuditLog.create({
+          event_type: 'order_deleted',
+          order_id: orderId,
+          user_id: req.user.id,
+          event_data: {
+            order_number: order.order_number,
+            stock_code: order.stock_code,
+            deleted_by: req.user.username
+          }
+        });
+        return res.json({
+          message: 'Order deleted successfully'
+        });
+      } else {
+        // Soft delete: set status to cancelled
+        ManufacturingOrder.update(orderId, { status: 'cancelled' });
+        AuditLog.create({
+          event_type: 'order_soft_deleted',
+          order_id: orderId,
+          user_id: req.user.id,
+          event_data: {
+            order_number: order.order_number,
+            stock_code: order.stock_code,
+            soft_deleted_by: req.user.username
+          }
+        });
+        return res.json({
+          message: 'Order was in progress or completed and has been cancelled (soft deleted)'
+        });
+      }
     } catch (error) {
       // Pass error to centralized error handler
       next({ status: 500, code: 'DELETE_FAILED', message: error.message });
@@ -319,20 +344,128 @@ class OrdersController {
   // POST /api/orders/import
   async importOrders(req, res, next) {
     try {
-      // TODO: Implement CSV/Excel import functionality
-      // This would involve:
-      // 1. File upload handling
-      // 2. CSV/Excel parsing
-      // 3. Data validation
-      // 4. Batch creation of orders
-      // 5. Error reporting for failed imports
+      const orders = Array.isArray(req.body) ? req.body : [];
+      if (!orders.length) {
+        return res.status(400).json({
+          error: 'No orders provided',
+          code: 'NO_ORDERS'
+        });
+      }
 
-      res.status(501).json({
-        error: 'Import functionality not yet implemented',
-        code: 'NOT_IMPLEMENTED'
-      });
+      // Track order numbers in this batch to prevent duplicates
+      const batchOrderNumbers = new Set();
+      const summary = {
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        errors: 0,
+        details: []
+      };
+
+      for (const orderData of orders) {
+        let result = { order_number: orderData.order_number };
+        try {
+          // Check for duplicate order numbers in the batch
+          if (batchOrderNumbers.has(orderData.order_number)) {
+            result.status = 'error';
+            result.message = 'Duplicate order number in import batch';
+            summary.errors++;
+            summary.details.push(result);
+            continue;
+          }
+          batchOrderNumbers.add(orderData.order_number);
+
+          // Validate using the create schema (required fields, types, etc.)
+          const { error, value } = require('../middleware/validation').schemas.order.create.validate(orderData, { abortEarly: false, stripUnknown: true, convert: true });
+          if (error) {
+            result.status = 'error';
+            result.message = 'Validation failed: ' + error.details.map(d => d.message).join('; ');
+            summary.errors++;
+            summary.details.push(result);
+            continue;
+          }
+
+          // Validate work centre if provided
+          if (value.current_work_centre_id) {
+            const workCentre = WorkCentre.findById(value.current_work_centre_id);
+            if (!workCentre) {
+              result.status = 'error';
+              result.message = 'Invalid work centre ID';
+              summary.errors++;
+              summary.details.push(result);
+              continue;
+            }
+          }
+
+          // Check if order exists
+          const existingOrder = ManufacturingOrder.findAll({ order_number: value.order_number })[0];
+          if (!existingOrder) {
+            // Create new order
+            value.created_by = req.user.id;
+            const newOrder = ManufacturingOrder.create(value);
+            if (value.manufacturing_steps && value.manufacturing_steps.length > 0) {
+              ManufacturingStep.createStepsForOrder(newOrder.id, value.manufacturing_steps);
+            }
+            AuditLog.create({
+              event_type: 'order_created',
+              order_id: newOrder.id,
+              user_id: req.user.id,
+              event_data: {
+                order_number: newOrder.orderNumber,
+                stock_code: newOrder.stockCode,
+                created_by: req.user.username
+              }
+            });
+            result.status = 'created';
+            result.message = 'Order created';
+            summary.created++;
+          } else {
+            // Only allow update if status is not_started
+            if (existingOrder.status === 'not_started') {
+              // Prevent order number change (should not happen in import)
+              const updateData = { ...value };
+              delete updateData.order_number;
+              // Validate work centre if being updated
+              if (updateData.current_work_centre_id) {
+                const workCentre = WorkCentre.findById(updateData.current_work_centre_id);
+                if (!workCentre) {
+                  result.status = 'error';
+                  result.message = 'Invalid work centre ID';
+                  summary.errors++;
+                  summary.details.push(result);
+                  continue;
+                }
+              }
+              const updatedOrder = ManufacturingOrder.update(existingOrder.id, updateData);
+              AuditLog.create({
+                event_type: 'order_updated',
+                order_id: existingOrder.id,
+                user_id: req.user.id,
+                event_data: {
+                  order_number: updatedOrder.orderNumber,
+                  updated_fields: Object.keys(updateData),
+                  updated_by: req.user.username
+                }
+              });
+              result.status = 'updated';
+              result.message = 'Order updated';
+              summary.updated++;
+            } else {
+              result.status = 'skipped';
+              result.message = 'Order already in progress, complete, or locked; not updated';
+              summary.skipped++;
+            }
+          }
+        } catch (err) {
+          result.status = 'error';
+          result.message = err.message || 'Unknown error';
+          summary.errors++;
+        }
+        summary.details.push(result);
+      }
+
+      res.json(summary);
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'IMPORT_FAILED', message: error.message });
     }
   }
@@ -441,6 +574,73 @@ class OrdersController {
     } catch (error) {
       // Pass error to centralized error handler
       next({ status: 400, code: 'STEP_COMPLETE_FAILED', message: error.message });
+    }
+  }
+
+  // POST /api/orders/reorder
+  async reorderOrders(req, res, next) {
+    try {
+      const { work_centre_id, order_positions } = req.body;
+
+      // Validate input
+      if (!work_centre_id || !Array.isArray(order_positions)) {
+        return res.status(400).json({
+          error: 'work_centre_id and order_positions array are required',
+          code: 'INVALID_INPUT'
+        });
+      }
+
+      // Validate each position entry
+      for (const position of order_positions) {
+        if (!position.order_id || typeof position.position !== 'number') {
+          return res.status(400).json({
+            error: 'Each position must have order_id and position',
+            code: 'INVALID_POSITION_DATA'
+          });
+        }
+      }
+
+      // Verify work centre exists
+      const workCentre = WorkCentre.findById(work_centre_id);
+      if (!workCentre) {
+        return res.status(404).json({
+          error: 'Work centre not found',
+          code: 'WORK_CENTRE_NOT_FOUND'
+        });
+      }
+
+      // Update positions in database
+      console.log('🔄 Reordering in backend:', { work_centre_id, order_positions });
+      const result = ManufacturingOrder.reorderInWorkCentre(work_centre_id, order_positions);
+      console.log('✅ Database update result:', result);
+      
+      // Check what the database actually contains after update
+      const updatedOrders = ManufacturingOrder.findAll({ work_centre_id });
+      console.log('📊 Orders after database update:', updatedOrders.filter(o => o.current_work_centre_id === work_centre_id).map(o => ({
+        id: o.id,
+        order_number: o.order_number,
+        work_centre_position: o.work_centre_position
+      })));
+
+      // Log the reorder action
+      AuditLog.create({
+        event_type: 'orders_reordered',
+        to_work_centre_id: work_centre_id,
+        user_id: req.user.id,
+        event_data: JSON.stringify({
+          work_centre_id,
+          order_count: order_positions.length,
+          order_positions
+        })
+      });
+
+      res.json({
+        message: 'Orders reordered successfully',
+        work_centre_id,
+        updated_count: result.changes || order_positions.length
+      });
+    } catch (error) {
+      next({ status: 400, code: 'REORDER_FAILED', message: error.message });
     }
   }
 }

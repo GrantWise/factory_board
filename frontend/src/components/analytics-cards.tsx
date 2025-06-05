@@ -32,7 +32,7 @@ export function AnalyticsCards({ metrics }: AnalyticsCardsProps) {
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{metrics.completion_rate}%</div>
+          <div className="text-2xl font-bold text-green-600">{metrics.completion_rate.toFixed(1)}%</div>
           <Progress value={metrics.completion_rate} className="mt-2" />
         </CardContent>
       </Card>
@@ -43,7 +43,7 @@ export function AnalyticsCards({ metrics }: AnalyticsCardsProps) {
           <Activity className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-primary-blue">{metrics.work_centre_utilization}%</div>
+          <div className="text-2xl font-bold text-primary-blue">{metrics.work_centre_utilization.toFixed(1)}%</div>
           <Progress value={metrics.work_centre_utilization} className="mt-2" />
         </CardContent>
       </Card>
@@ -83,7 +83,7 @@ export function AnalyticsCards({ metrics }: AnalyticsCardsProps) {
           <Clock className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{metrics.average_cycle_time}</div>
+          <div className="text-2xl font-bold">{metrics.average_cycle_time.toFixed(1)}</div>
           <p className="text-xs text-muted-foreground">days</p>
         </CardContent>
       </Card>

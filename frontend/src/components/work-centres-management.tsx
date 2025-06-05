@@ -144,8 +144,9 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
       setIsAddDialogOpen(false)
       setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
       toast.success('Work centre created successfully')
-    } catch (error: any) {
-      toast.error(error.error || 'Failed to create work centre')
+    } catch (error: unknown) {
+      const err = error as { error?: string }
+      toast.error(err.error || 'Failed to create work centre')
     }
   }
 
@@ -234,8 +235,9 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
       setEditingCentre(null)
       setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
       toast.success('Work centre updated successfully')
-    } catch (error: any) {
-      toast.error(error.error || 'Failed to update work centre')
+    } catch (error: unknown) {
+      const err = error as { error?: string }
+      toast.error(err.error || 'Failed to update work centre')
     }
   }
 
@@ -253,8 +255,9 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
 
       onWorkCentreUpdate?.() // Trigger refresh from API
       toast.success('Work centre deleted successfully')
-    } catch (error: any) {
-      toast.error(error.error || 'Failed to delete work centre')
+    } catch (error: unknown) {
+      const err = error as { error?: string }
+      toast.error(err.error || 'Failed to delete work centre')
     }
   }
 
@@ -281,8 +284,9 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
 
       onWorkCentreUpdate?.() // Trigger refresh from API
       toast.success(`Work centre ${newIsActive ? 'activated' : 'deactivated'} successfully`)
-    } catch (error: any) {
-      toast.error(error.error || 'Failed to update work centre status')
+    } catch (error: unknown) {
+      const err = error as { error?: string }
+      toast.error(err.error || 'Failed to update work centre status')
     }
   }
 

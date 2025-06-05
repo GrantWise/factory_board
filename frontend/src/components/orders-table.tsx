@@ -30,8 +30,61 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Download } from "lucide-react"
+import { Search, Download, Upload } from "lucide-react"
 import type { ManufacturingOrder } from "@/types/manufacturing"
+
+// Types for import functionality
+interface RawOrderData {
+  order_number?: string
+  stock_code?: string
+  description?: string
+  quantity_to_make?: string | number
+  quantity_completed?: string | number
+  current_operation?: string
+  current_work_centre_id?: string | number
+  status?: string
+  priority?: string
+  due_date?: string
+  start_date?: string
+  [key: string]: unknown
+}
+
+interface CleanedOrderData {
+  order_number: string
+  stock_code: string
+  description: string
+  quantity_to_make: number
+  quantity_completed?: number
+  current_operation?: string
+  current_work_centre_id?: number
+  status?: string
+  priority?: string
+  due_date?: string
+  start_date?: string
+}
+
+interface ImportDetail {
+  order_number: string
+  status: 'created' | 'updated' | 'skipped' | 'error'
+  message: string
+}
+
+interface ImportSummary {
+  created: number
+  updated: number
+  skipped: number
+  errors: number
+  details: ImportDetail[]
+}
+
+interface ImportError {
+  error?: string
+  message?: string
+}
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import Papa from "papaparse"
+import React from "react"
+import { ordersService } from "@/lib/api-services"
 
 interface OrdersTableProps {
   /** Array of manufacturing orders in API format */
@@ -43,6 +96,12 @@ export function OrdersTable({ orders }: OrdersTableProps) {
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [isExporting, setIsExporting] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importSuccess, setImportSuccess] = useState<string | null>(null)
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
@@ -162,20 +221,183 @@ export function OrdersTable({ orders }: OrdersTableProps) {
     }
   }
 
+  // Helper: Check for required columns in CSV header
+  function hasRequiredColumns(header: string[]): boolean {
+    const required = ["order_number", "stock_code", "description", "quantity_to_make"]
+    return required.every(col => header.includes(col))
+  }
+
+  // Helper: Validate individual order data
+  function validateOrderData(order: RawOrderData, index: number): string | null {
+    if (!order.order_number || typeof order.order_number !== 'string' || order.order_number.trim() === '') {
+      return `Row ${index + 1}: Order number is required and cannot be empty`
+    }
+    if (!order.stock_code || typeof order.stock_code !== 'string' || order.stock_code.trim() === '') {
+      return `Row ${index + 1}: Stock code is required and cannot be empty`
+    }
+    if (!order.description || typeof order.description !== 'string' || order.description.trim() === '') {
+      return `Row ${index + 1}: Description is required and cannot be empty`
+    }
+    if (!order.quantity_to_make || isNaN(Number(order.quantity_to_make)) || Number(order.quantity_to_make) <= 0) {
+      return `Row ${index + 1}: Quantity to make must be a positive number`
+    }
+    if (order.current_work_centre_id && (isNaN(Number(order.current_work_centre_id)) || Number(order.current_work_centre_id) <= 0)) {
+      return `Row ${index + 1}: Work centre ID must be a positive number if provided`
+    }
+    if (order.priority && !['low', 'medium', 'high', 'urgent'].includes(order.priority)) {
+      return `Row ${index + 1}: Priority must be one of: low, medium, high, urgent`
+    }
+    if (order.status && !['not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled'].includes(order.status)) {
+      return `Row ${index + 1}: Status must be one of: not_started, in_progress, complete, overdue, on_hold, cancelled`
+    }
+    return null
+  }
+
+  // Helper: Clean and normalize order data
+  function cleanOrderData(order: RawOrderData): CleanedOrderData {
+    const cleaned = {
+      order_number: String(order.order_number).trim(),
+      stock_code: String(order.stock_code).trim(), 
+      description: String(order.description).trim(),
+      quantity_to_make: Number(order.quantity_to_make),
+      quantity_completed: order.quantity_completed ? Number(order.quantity_completed) : 0,
+      current_operation: order.current_operation ? String(order.current_operation).trim() : undefined,
+      current_work_centre_id: order.current_work_centre_id ? Number(order.current_work_centre_id) : undefined,
+      status: order.status ? String(order.status).trim() : 'not_started',
+      priority: order.priority ? String(order.priority).trim() : 'medium',
+      due_date: order.due_date ? String(order.due_date).trim() : undefined,
+      start_date: order.start_date ? String(order.start_date).trim() : undefined,
+    }
+    
+    // Remove undefined values
+    Object.keys(cleaned).forEach(key => {
+      const typedKey = key as keyof CleanedOrderData
+      if (cleaned[typedKey] === undefined) {
+        delete cleaned[typedKey]
+      }
+    })
+    
+    return cleaned
+  }
+
+  // Handle CSV file selection and import
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null)
+    setImportSuccess(null)
+    setImportSummary(null)
+    setImporting(true)
+    const file = e.target.files?.[0]
+    if (!file) return
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as RawOrderData[]
+        const header = results.meta.fields || []
+        if (!hasRequiredColumns(header)) {
+          setImportError("CSV is missing required columns: order_number, stock_code, description, quantity_to_make")
+          setImporting(false)
+          return
+        }
+
+        // Validate and clean all rows before sending to backend
+        const validationErrors: string[] = []
+        const cleanedRows: CleanedOrderData[] = []
+        
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i]
+          const validationError = validateOrderData(row, i)
+          
+          if (validationError) {
+            validationErrors.push(validationError)
+          } else {
+            cleanedRows.push(cleanOrderData(row))
+          }
+        }
+
+        // If there are validation errors, show them and stop
+        if (validationErrors.length > 0) {
+          setImportError(`Validation errors found:\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? `\n... and ${validationErrors.length - 5} more errors` : ''}`)
+          setImporting(false)
+          return
+        }
+
+        // Send validated and cleaned rows to backend for processing
+        try {
+          const response = await ordersService.bulkImport(cleanedRows)
+          setImportSummary(response)
+          setImportSuccess(`Import completed: ${response.created} created, ${response.updated} updated, ${response.skipped} skipped, ${response.errors} errors`)
+        } catch (err: unknown) {
+          const importErr = err as ImportError
+          setImportError("Import failed: " + (importErr.error || importErr.message || "Unknown error"))
+        } finally {
+          setImporting(false)
+          setIsImportDialogOpen(false)
+        }
+      },
+      error: (err) => {
+        setImportError("Failed to parse CSV: " + err.message)
+        setImporting(false)
+      },
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-primary-blue">Orders Management</h2>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleExport}
-          disabled={isExporting || filteredOrders.length === 0}
-        >
-          <Download className="h-4 w-4 mr-2" />
-          {isExporting ? 'Exporting...' : 'Export CSV'}
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Orders from CSV</DialogTitle>
+              </DialogHeader>
+              <input
+                type="file"
+                accept=".csv"
+                ref={fileInputRef}
+                onChange={handleImportCSV}
+                disabled={importing}
+                className="mb-2"
+                aria-label="import"
+              />
+              {importError && <div className="text-red-600 text-sm">{importError}</div>}
+              {importSuccess && <div className="text-green-600 text-sm">{importSuccess}</div>}
+              <div className="text-xs text-gray-500 mt-2">
+                Required columns: order_number, stock_code, description, quantity_to_make
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExport}
+            disabled={isExporting || filteredOrders.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Export CSV'}
+          </Button>
+        </div>
       </div>
+      {/* Import summary display */}
+      {importSummary && (
+        <div className="bg-gray-50 border rounded p-4 mt-2">
+          <div className="font-semibold mb-2">Import Summary</div>
+          <ul className="text-sm space-y-1">
+            {importSummary.details.map((d: ImportDetail, i: number) => (
+              <li key={i} className={d.status === "created" ? "text-green-700" : d.status === "updated" ? "text-blue-700" : d.status === "skipped" ? "text-yellow-700" : "text-red-700"}>
+                {d.order_number}: {d.status} - {d.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

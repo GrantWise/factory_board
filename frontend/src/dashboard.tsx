@@ -51,7 +51,15 @@ export default function Dashboard() {
   } = useApiData(
     () => ordersService.getAll(),
     [],
-    { autoRefresh: 30000 } // Refresh every 30 seconds
+    { 
+      autoRefresh: 30000, // Refresh every 30 seconds
+      onError: (error) => {
+        // Silently handle auth errors - don't spam user
+        if (error.status === 401 || error.status === 429) {
+          return;
+        }
+      }
+    }
   )
   
   // Fetch work centres from API
@@ -62,7 +70,15 @@ export default function Dashboard() {
   } = useApiData(
     () => workCentresService.getAll(),
     [],
-    { autoRefresh: 60000 } // Refresh every minute
+    { 
+      autoRefresh: 60000, // Refresh every minute
+      onError: (error) => {
+        // Silently handle auth errors - don't spam user
+        if (error.status === 401 || error.status === 429) {
+          return;
+        }
+      }
+    }
   )
   
   // Extract data from API responses
@@ -90,17 +106,19 @@ export default function Dashboard() {
    */
   const handleOrderMove = async (orderId: number, newWorkCentreId: number) => {
     try {
-      console.log('[Dashboard] Starting order move:', { orderId, newWorkCentreId });
-      
-      console.log('[Dashboard] Moving order:', { orderId, newWorkCentreId });
       await ordersService.move(orderId, newWorkCentreId, 'Moved via planning board')
       
-      console.log('[Dashboard] Order moved successfully, refreshing data');
       // Refresh data to get updated state
       await Promise.all([refetchOrders(), refetchWorkCentres()])
       
       toast.success('Order moved successfully')
     } catch (error: any) {
+      // Handle auth errors gracefully
+      if (error.status === 401 || error.status === 429) {
+        toast.error('Please log in to move orders')
+        return
+      }
+      
       console.error('[Dashboard] Order move failed:', {
         orderId,
         newWorkCentreId,
@@ -202,7 +220,7 @@ export default function Dashboard() {
       case "dashboard":
         return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
       case "planning":
-        return <PlanningBoard orders={orders} workCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} />
+        return <PlanningBoard orders={orders} workCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} onOrderUpdate={refetchOrders} />
       case "workcentres":
         return <WorkCentresManagement workCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":

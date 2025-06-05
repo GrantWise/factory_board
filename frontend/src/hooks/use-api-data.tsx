@@ -34,11 +34,18 @@ export function useApiData<T>(
       setData(result);
     } catch (err: any) {
       setError(err);
+      
+      // Handle auth errors silently - don't spam console/toast
+      if (err.status === 401 || err.status === 429) {
+        // Auth required or rate limited - fail silently
+        return;
+      }
+      
       console.error('API call failed:', err);
       
       if (options.onError) {
         options.onError(err);
-      } else {
+      } else if (err.status !== 0) { // Don't show toast for network errors during development
         toast.error(err.error || 'Failed to fetch data');
       }
     } finally {

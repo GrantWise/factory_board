@@ -185,6 +185,83 @@ POST   /api/orders/:id/end-move    # Scheduler only (conflict resolution)
 POST   /api/orders/import          # Admin, Scheduler (CSV/Excel)
 ```
 
+### Unified Order Import API
+
+#### Endpoint
+```
+POST /api/orders/import
+```
+
+#### Purpose
+A single endpoint to import manufacturing orders in bulk, supporting both CSV/Excel (via frontend parsing) and 3rd party system integration. Centralizes all business logic for order creation, update, and validation.
+
+#### Payload
+An array of order objects, each matching the ManufacturingOrder schema:
+```json
+[
+  {
+    "order_number": "ORD001",
+    "stock_code": "STK1",
+    "description": "Widget A",
+    "quantity_to_make": 100,
+    "priority": "high",
+    "status": "not_started",
+    "work_centre_id": 1,
+    "due_date": "2024-07-01"
+  },
+  {
+    "order_number": "ORD002",
+    "stock_code": "STK2",
+    "description": "Widget B",
+    "quantity_to_make": 50,
+    "priority": "medium",
+    "status": "not_started",
+    "work_centre_id": 2,
+    "due_date": "2024-07-05"
+  }
+]
+```
+
+#### Response
+A summary object with per-order results:
+```json
+{
+  "created": 5,
+  "updated": 2,
+  "skipped": 3,
+  "errors": 1,
+  "details": [
+    { "order_number": "ORD001", "status": "created", "message": "Order created" },
+    { "order_number": "ORD002", "status": "updated", "message": "Order updated" },
+    { "order_number": "ORD003", "status": "skipped", "message": "Order already in progress, not updated" },
+    { "order_number": "ORD004", "status": "error", "message": "Missing required field: stock_code" }
+  ]
+}
+```
+
+#### Business Rules
+- All required fields must be present (`order_number`, `stock_code`, `description`, `quantity_to_make`, etc.).
+- No duplicate order numbers in the same import batch.
+- If an order exists and status is `not_started`, it is updated; otherwise, it is skipped.
+- If an order is skipped or errored, a clear message is included in the response.
+- All foreign keys (e.g., work centre IDs) are validated.
+- The same endpoint is used for both frontend CSV import and 3rd party integrations.
+
+#### Permissions
+- Only users with `orders:write` permission (Admin, Scheduler) can use this endpoint.
+
+#### Example Usage
+```http
+POST /api/orders/import
+Authorization: Bearer <token>
+Content-Type: application/json
+
+[
+  { "order_number": "ORD100", "stock_code": "STK100", "description": "Widget X", "quantity_to_make": 10, "work_centre_id": 1, "status": "not_started" },
+  { "order_number": "ORD101", "stock_code": "STK101", "description": "Widget Y", "quantity_to_make": 20, "work_centre_id": 2, "status": "not_started" }
+]
+```
+
 ### Planning Board
 ```
 GET    /api/planning-board         # All roles - returns kanban data

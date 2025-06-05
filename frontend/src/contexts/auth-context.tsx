@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { User } from '@/types/manufacturing';
 import { authService } from '@/lib/api-services';
 import { api } from '@/lib/api';
@@ -84,19 +84,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.refresh_token) {
         localStorage.setItem('refresh_token', response.refresh_token);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; error?: string; status?: number; code?: string }
       console.error('Login failed:', {
-        message: error?.message || 'Unknown error',
-        error: error?.error || 'No error details',
-        status: error?.status || 'No status',
-        code: error?.code || 'No code'
+        message: err?.message || 'Unknown error',
+        error: err?.error || 'No error details',
+        status: err?.status || 'No status',
+        code: err?.code || 'No code'
       });
       
       // Re-throw with better error structure
       const errorToThrow = {
-        error: error?.error || error?.message || 'Login failed',
-        code: error?.code || 'LOGIN_FAILED',
-        status: error?.status || 500
+        error: err?.error || err?.message || 'Login failed',
+        code: err?.code || 'LOGIN_FAILED',
+        status: err?.status || 500
       };
       
       throw errorToThrow;
@@ -115,7 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const refreshToken = async (refreshTokenValue: string): Promise<void> => {
+  const refreshToken = useCallback(async (refreshTokenValue: string): Promise<void> => {
     try {
       const response = await authService.refreshToken(refreshTokenValue);
       setUser(response.user);
@@ -129,42 +130,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await logout();
       throw error;
     }
-  };
+  }, [logout]);
 
   // Initialize auth state on mount
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeAuth = async () => {
       const token = api.getToken();
       
-      if (token) {
+      if (token && isMounted) {
         try {
           const response = await authService.getCurrentUser();
-          setUser(response.user);
-        } catch (error) {
-          console.error('Failed to get current user:', error);
-          
-          // Try to refresh token
-          const refreshTokenValue = localStorage.getItem('refresh_token');
-          if (refreshTokenValue) {
-            try {
-              await refreshToken(refreshTokenValue);
-            } catch (refreshError) {
-              console.error('Token refresh failed during initialization:', refreshError);
-              // Clear invalid tokens
-              api.setToken(null);
-              localStorage.removeItem('refresh_token');
+          if (isMounted) {
+            setUser(response.user);
+          }
+        } catch (error: unknown) {
+          // Check if it's a rate limiting error
+          const err = error as { status?: number };
+          if (err.status === 429) {
+            // Rate limited - skip auth check for now
+            if (isMounted) {
+              setIsLoading(false);
             }
-          } else {
-            // No refresh token, clear invalid access token
+            return;
+          }
+          
+          // Other auth errors - clear tokens
+          if (isMounted) {
             api.setToken(null);
+            localStorage.removeItem('refresh_token');
           }
         }
       }
       
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
 
     initializeAuth();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Auto-refresh token when it's about to expire
@@ -201,7 +210,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Failed to decode token for auto-refresh:', error);
     }
-  }, [user]);
+  }, [user, refreshToken]);
 
   const value: AuthContextType = {
     user,

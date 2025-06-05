@@ -152,6 +152,31 @@ export const ordersService = {
       quantity_completed: quantityCompleted,
     });
   },
+
+  bulkImport: async (orders: any[]): Promise<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+    details: Array<{
+      order_number: string;
+      status: 'created' | 'updated' | 'skipped' | 'error';
+      message: string;
+    }>;
+  }> => {
+    return api.post('/orders/import', orders);
+  },
+
+  reorder: async (workCentreId: number, orderPositions: Array<{ order_id: number; position: number }>): Promise<{
+    message: string;
+    work_centre_id: number;
+    updated_count: number;
+  }> => {
+    return api.post('/orders/reorder', {
+      work_centre_id: workCentreId,
+      order_positions: orderPositions,
+    });
+  },
 };
 
 // Work centres services

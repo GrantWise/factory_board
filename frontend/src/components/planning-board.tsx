@@ -9,6 +9,7 @@
  * 
  * Key Features:
  * - Drag-and-drop order movement between work centres
+ * - Intra-column reordering of orders within work centres
  * - Real-time locking to prevent conflicts during order moves
  * - Work centre column reordering with backend persistence
  * - Live user presence indicators
@@ -25,43 +26,44 @@
  * - Updates are pushed to backend and trigger data refresh
  */
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Settings, Plus, GripVertical } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { OrderCard } from "@/components/order-card"
 import { OnlineUsersIndicator } from "@/components/online-users-indicator"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { useDragAndDrop } from "@/hooks/use-drag-and-drop"
-import { workCentresService } from "@/lib/api-services"
+import { workCentresService, ordersService } from "@/lib/api-services"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import type { ManufacturingOrder, WorkCentre } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverEvent,
-} from "@dnd-kit/core"
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import {
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+  draggable,
+  dropTargetForElements,
+  monitorForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter"
+import { reorder } from "@atlaskit/pragmatic-drag-and-drop/reorder"
+// import DropIndicator from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator"
+
+// TypeScript interfaces for drag events
+interface DragData {
+  type: 'order' | 'work-centre'
+  id: number
+  sourceColumnId?: number
+  sourceIndex?: number
+  [key: string | symbol]: unknown
+}
+
+interface DropData {
+  type: 'column' | 'card-list'
+  columnId: number
+  index?: number
+  insertionPoint?: 'before' | 'after' | 'replace'
+  [key: string | symbol]: unknown
+}
 
 interface PlanningBoardProps {
   /** Manufacturing orders in API format for display */
@@ -69,11 +71,15 @@ interface PlanningBoardProps {
   /** Work centres in API format for display */
   workCentres: WorkCentre[]
   /** Callback when an order is moved between work centres */
-  onOrderMove?: (orderId: number, newWorkCentreId: number) => void
+  onOrderMove?: (orderId: number, newWorkCentreId: number, newIndex?: number) => void
   /** Callback for page navigation */
   onNavigate?: (page: string) => void
   /** Callback to refresh work centres data after reordering */
   onWorkCentreUpdate?: () => Promise<void>
+  /** Callback to refresh orders data after reordering */
+  onOrderUpdate?: () => Promise<void>
+  /** TV Mode: display-only, high-contrast, no controls */
+  tvMode?: boolean
 }
 
 // Mock current user for demo
@@ -82,48 +88,47 @@ const currentUser = {
   name: "John Doe",
 }
 
-/**
- * DraggableWorkCentreItem - Sortable work centre item for column configuration
- * 
- * Used within the configuration dialog to allow users to reorder work centre
- * columns via drag and drop. Shows work centre name and current job count.
- */
+// DraggableWorkCentreItem - Sortable work centre item for column configuration
 function DraggableWorkCentreItem({ 
   workCentre, 
   index, 
-  jobCount 
-}: { 
+  jobCount, 
+  onDragStart, 
+  isDragging 
+}: {
   workCentre: WorkCentre
   index: number
   jobCount: number
+  onDragStart: (workCentre: WorkCentre) => void
+  isDragging: boolean
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: workCentre.id,
-  })
+  const ref = useRef<HTMLDivElement | null>(null)
+  
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
+    const cleanup = draggable({
+      element,
+      getInitialData: (): DragData => ({ 
+        type: 'work-centre',
+        id: workCentre.id 
+      }),
+      onDragStart: () => onDragStart(workCentre),
+    })
+    
+    return cleanup
+  }, [workCentre, onDragStart])
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
+      ref={ref}
       className={cn(
-        "flex items-center justify-between p-3 border rounded-lg bg-gray-50 cursor-grab active:cursor-grabbing",
-        isDragging && "shadow-lg ring-2 ring-blue-500"
+        "flex items-center justify-between p-3 border rounded-lg bg-gray-50 cursor-grab active:cursor-grabbing transition-all",
+        isDragging && "shadow-lg ring-2 ring-blue-500 opacity-75 rotate-1 scale-105"
       )}
+      tabIndex={0}
+      style={{ zIndex: isDragging ? 100 : undefined }}
     >
       <div className="flex items-center gap-3">
         <GripVertical className="h-4 w-4 text-gray-400" />
@@ -137,696 +142,670 @@ function DraggableWorkCentreItem({
   )
 }
 
-/**
- * DraggableOrderCard - Individual order card with drag-and-drop capability
- * 
- * Wraps the OrderCard component with drag-and-drop functionality using dnd-kit.
- * Handles locking states to prevent movement when order is being moved by another user.
- */
-function DraggableOrderCard({ 
-  order, 
-  isLocked, 
-  lockedBy,
-  isDragging 
-}: { 
-  order: ManufacturingOrder
-  isLocked: boolean
-  lockedBy?: string
-  isDragging: boolean
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: isSortableDragging,
-  } = useSortable({
-    id: order.id,
-    data: order,
-    disabled: isLocked,
-  })
+// TV-only component that doesn't require authentication
+function TVPlanningBoard({ orders, workCentres }: { orders: ManufacturingOrder[], workCentres: WorkCentre[] }) {
+  const activeWorkCentres = workCentres
+    .filter(wc => wc.is_active)
+    .sort((a, b) => a.display_order - b.display_order)
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isSortableDragging ? 0.5 : 1,
-  }
+  const getOrdersForWorkCentre = useCallback((workCentreId: number) => {
+    return orders.filter((order) => order.current_work_centre_id === workCentreId)
+  }, [orders])
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={cn(
-        "cursor-grab active:cursor-grabbing",
-        isLocked && "cursor-not-allowed"
-      )}
-    >
-      <OrderCard
-        order={order}
-        isDragging={isDragging || isSortableDragging}
-        isLocked={isLocked}
-        lockedBy={lockedBy}
-      />
+    <div className="space-y-4 bg-black text-white min-h-screen">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <h2 className="text-4xl font-extrabold tracking-wide">
+            Manufacturing Planning Board
+          </h2>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-lg">
+        {activeWorkCentres.map((workCentre) => (
+          <div key={workCentre.id} className="rounded-lg bg-gray-900 border-2 border-gray-700 p-4">
+            <div className="font-bold text-2xl mb-4 text-yellow-400">
+              {workCentre.name}
+            </div>
+            <div className="space-y-2">
+              {getOrdersForWorkCentre(workCentre.id).map((order) => (
+                <div key={order.id} className="bg-gray-800 rounded p-3 text-white text-lg">
+                  <OrderCard order={order} isDragging={false} isLocked={false} />
+                </div>
+              ))}
+              {getOrdersForWorkCentre(workCentre.id).length === 0 && (
+                <div className="text-gray-500 text-base">No orders</div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-/**
- * DroppableWorkCentre - Work centre column that can receive dropped orders
- * 
- * Represents a work centre as a vertical column containing orders.
- * Provides drop zone for order movement and displays work centre information.
- * Includes context menu for work centre actions.
- */
-function DroppableWorkCentre({ 
-  workCentre, 
-  orders, 
-  isOver,
-  isOrderLocked,
-  getOrderLockInfo,
-  activeOrderId,
-  onNavigate,
-  setViewDetailsWorkCentre,
-  setClearJobsWorkCentre,
-  getOrdersForWorkCentre
-}: {
-  workCentre: WorkCentre
-  orders: ManufacturingOrder[]
-  isOver: boolean
-  isOrderLocked: (orderId: number) => boolean
-  getOrderLockInfo: (orderId: number) => string
-  activeOrderId: number | null
-  onNavigate?: (page: string) => void
-  setViewDetailsWorkCentre: (workCentre: WorkCentre) => void
-  setClearJobsWorkCentre: (workCentre: WorkCentre) => void
-  getOrdersForWorkCentre: (workCentreId: number) => ManufacturingOrder[]
+// DraggableOrderCard - Draggable wrapper for order cards with improved UX
+function DraggableOrderCard({ 
+  order, 
+  columnId,
+  index,
+  isDragging, 
+  onDragStart 
+}: { 
+  order: ManufacturingOrder
+  columnId: number
+  index: number
+  isDragging: boolean
+  onDragStart: (order: ManufacturingOrder) => void 
 }) {
-  const {
-    setNodeRef,
-  } = useSortable({
-    id: workCentre.id,
-  })
+  const ref = useRef<HTMLDivElement | null>(null)
+  
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
 
-  const orderIds = orders.map(order => order.id)
+    const cleanup = draggable({
+      element,
+      getInitialData: (): DragData => ({ 
+        type: 'order',
+        id: order.id,
+        sourceColumnId: columnId,
+        sourceIndex: index
+      }),
+      onDragStart: () => onDragStart(order),
+    })
+    
+    return cleanup
+  }, [order, columnId, index, onDragStart])
 
   return (
-    <Card
-      ref={setNodeRef}
+    <div
+      ref={ref}
       className={cn(
-        "h-fit min-h-[400px] transition-all duration-200",
-        isOver && "ring-2 ring-green-500 bg-green-50",
+        "cursor-grab active:cursor-grabbing bg-white rounded shadow-sm border transition-all duration-200",
+        isDragging && "opacity-75 shadow-lg rotate-2 scale-105 ring-2 ring-blue-500"
       )}
+      style={{ zIndex: isDragging ? 100 : undefined }}
+      tabIndex={0}
     >
-      <CardHeader className="pb-3 bg-gray-50 border-b">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              {workCentre.name} ({orders.length} jobs)
-            </CardTitle>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <Settings className="h-4 w-4 text-gray-500" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onNavigate?.('workcentres')}>
-                Configure Work Centre
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setViewDetailsWorkCentre(workCentre)}>
-                View Details
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => setClearJobsWorkCentre(workCentre)}
-                disabled={getOrdersForWorkCentre(workCentre.id).length === 0}
-              >
-                Clear All Jobs
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {orders.length === 0 ? (
-          <div
-            className={cn(
-              "text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg transition-colors",
-              isOver ? "border-green-400 bg-green-50" : "border-gray-200",
-            )}
-          >
-            <p className="text-sm">No orders assigned</p>
-            <p className="text-xs">Drag orders here</p>
-          </div>
-        ) : (
-          <SortableContext items={orderIds} strategy={verticalListSortingStrategy}>
-            {orders.map((order) => {
-              const orderLocked = isOrderLocked(order.id)
-              const lockedByUser = orderLocked ? getOrderLockInfo(order.id) : undefined
-
-              return (
-                <DraggableOrderCard
-                  key={order.id}
-                  order={order}
-                  isLocked={orderLocked}
-                  lockedBy={lockedByUser}
-                  isDragging={activeOrderId === order.id}
-                />
-              )
-            })}
-          </SortableContext>
-        )}
-      </CardContent>
-    </Card>
+      <OrderCard order={order} isDragging={isDragging} isLocked={false} />
+    </div>
   )
 }
 
-export function PlanningBoard({ orders, workCentres, onOrderMove, onNavigate, onWorkCentreUpdate }: PlanningBoardProps) {
+// DropZone - Enhanced drop zone with visual feedback
+function DropZone({ 
+  columnId, 
+  index, 
+  isActive, 
+  children,
+  insertionPoint 
+}: { 
+  columnId: number
+  index?: number
+  isActive: boolean
+  children: React.ReactNode
+  insertionPoint?: 'before' | 'after' | 'replace'
+}) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [isDraggedOver, setIsDraggedOver] = useState(false)
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const cleanup = dropTargetForElements({
+      element,
+      getData: (): DropData => ({ 
+        type: index !== undefined ? 'card-list' : 'column',
+        columnId,
+        index,
+        insertionPoint: insertionPoint || 'replace'
+      }),
+      canDrop: ({ source }) => {
+        const dragData = source.data as DragData;
+        return dragData.type === 'order' || dragData.type === 'work-centre';
+      },
+      onDragEnter: () => setIsDraggedOver(true),
+      onDragLeave: () => setIsDraggedOver(false),
+      onDrop: () => setIsDraggedOver(false),
+    })
+    
+    return cleanup
+  }, [columnId, index])
+
+  const isInsertionPoint = insertionPoint === 'before' || insertionPoint === 'after'
+  
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "transition-all duration-200",
+        isInsertionPoint && "min-h-[8px] flex items-center justify-center",
+        isDraggedOver && isActive && isInsertionPoint && "bg-blue-200 border-2 border-blue-400 border-dashed rounded-lg",
+        isDraggedOver && isActive && !isInsertionPoint && "bg-blue-50 ring-2 ring-blue-300 ring-dashed",
+        !isActive && "pointer-events-none"
+      )}
+    >
+      {isInsertionPoint && isDraggedOver ? (
+        <div className="w-full h-1 bg-blue-400 rounded-full" />
+      ) : (
+        children
+      )}
+    </div>
+  )
+}
+
+function MainPlanningBoard({ 
+  orders, 
+  workCentres, 
+  onOrderMove, 
+  onNavigate, 
+  onWorkCentreUpdate,
+  onOrderUpdate 
+}: Omit<PlanningBoardProps, 'tvMode'>) {
   const { user, hasPermission } = useAuth()
-  const { connectedUsers, lockedOrders, isConnected } = useWebSocket(currentUser)
-  const { handleDragStart, handleDragEnd, handleDragOver, activeOrderId } = useDragAndDrop({ 
-    currentUser, 
-    onOrderMove 
-  })
-  // const { showNotification } = useNotifications()
-  const [overId, setOverId] = useState<string | null>(null)
+  const { connectedUsers, isConnected } = useWebSocket(currentUser)
+  
+  // State management
   const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const [isAddWorkCentreDialogOpen, setIsAddWorkCentreDialogOpen] = useState(false)
-  const [viewDetailsWorkCentre, setViewDetailsWorkCentre] = useState<WorkCentre | null>(null)
-  const [clearJobsWorkCentre, setClearJobsWorkCentre] = useState<WorkCentre | null>(null)
+  const [draggedOrderId, setDraggedOrderId] = useState<number | null>(null)
+  const [draggedWorkCentreId, setDraggedWorkCentreId] = useState<number | null>(null)
+
+  // Work centre ordering for configuration
   const [workCentreOrder, setWorkCentreOrder] = useState<WorkCentre[]>(() => 
     [...workCentres].sort((a, b) => a.display_order - b.display_order)
   )
 
-  // Sync workCentreOrder when workCentres prop changes (e.g., after reorder)
+  // Keep workCentreOrder in sync with props
   useEffect(() => {
     setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
   }, [workCentres])
 
-  /**
-   * Handles drag-and-drop reordering of work centre columns
-   * Updates local state immediately for responsive UI
-   * @param event - DragEndEvent from dnd-kit
-   */
-  const handleColumnDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
+  // Order management within columns - with optimistic updates
+  const [optimisticOrderMap, setOptimisticOrderMap] = useState<Record<number, number[]>>({})
+  const [activeReorderOperations, setActiveReorderOperations] = useState<Set<number>>(new Set())
+  
+  const getOrdersForWorkCentre = useCallback((workCentreId: number) => {
+    const allWorkCentreOrders = orders.filter(order => order.current_work_centre_id === workCentreId)
     
-    if (!over || active.id === over.id) {
-      return
+    // If we have an optimistic order for this work centre, use it
+    if (optimisticOrderMap[workCentreId]) {
+      const orderMap = new Map(allWorkCentreOrders.map(o => [o.id, o]))
+      return optimisticOrderMap[workCentreId]
+        .map(id => orderMap.get(id))
+        .filter(Boolean) as ManufacturingOrder[]
     }
+    
+    // Otherwise use backend order
+    return allWorkCentreOrders
+  }, [orders, optimisticOrderMap])
 
-    setWorkCentreOrder((items) => {
-      const oldIndex = items.findIndex((item) => item.id === active.id)
-      const newIndex = items.findIndex((item) => item.id === over.id)
-      
-      const newItems = arrayMove(items, oldIndex, newIndex)
-      
-      // Update the display_order property
-      return newItems.map((item, index) => ({
-        ...item,
-        display_order: index + 1
-      }))
+  // Sorted and active work centres
+  const activeWorkCentres = useMemo(() => 
+    [...workCentres]
+      .filter(wc => wc.is_active)
+      .sort((a, b) => a.display_order - b.display_order),
+    [workCentres]
+  )
+
+  // Drag event handlers
+  const handleOrderDragStart = useCallback((order: ManufacturingOrder) => {
+    setDraggedOrderId(order.id)
+  }, [])
+
+  const handleWorkCentreDragStart = useCallback((workCentre: WorkCentre) => {
+    setDraggedWorkCentreId(workCentre.id)
+  }, [])
+
+  // Reorder cards within a column
+  const handleReorderInColumn = useCallback(async (
+    columnId: number, 
+    fromIndex: number, 
+    toIndex: number, 
+    insertionPoint?: string
+  ) => {
+    console.log('🔄 Reorder Debug:', { columnId, fromIndex, toIndex, insertionPoint });
+    
+    // Mark this work centre as having an active reorder operation
+    setActiveReorderOperations(prev => new Set(prev).add(columnId));
+    
+    // Get current orders in this work centre
+    const workCentreOrders = orders.filter(order => order.current_work_centre_id === columnId)
+    console.log('📋 Current orders:', workCentreOrders.map((o, i) => ({ index: i, id: o.id, number: o.order_number })));
+    
+    // Calculate the actual target index based on insertion point
+    let actualTargetIndex = toIndex
+    if (insertionPoint === 'before') {
+      actualTargetIndex = toIndex
+    } else if (insertionPoint === 'after') {
+      actualTargetIndex = Math.min(workCentreOrders.length - 1, toIndex)
+    } else if (insertionPoint === 'replace') {
+      actualTargetIndex = toIndex
+    }
+    
+    console.log('🎯 Target index:', actualTargetIndex);
+    
+    // Don't proceed if source and target are the same
+    if (fromIndex === actualTargetIndex) {
+      console.log('❌ Same position, skipping');
+      setActiveReorderOperations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(columnId);
+        return newSet;
+      });
+      return;
+    }
+    
+    // Reorder the array locally first for immediate feedback
+    const reorderedList = reorder({
+      list: workCentreOrders,
+      startIndex: fromIndex,
+      finishIndex: actualTargetIndex
     })
-  }
+    
+    console.log('🔄 Reordered list:', reorderedList.map((o, i) => ({ index: i, id: o.id, number: o.order_number })));
+    
+    // Set optimistic order immediately for instant visual feedback
+    setOptimisticOrderMap(prev => ({
+      ...prev,
+      [columnId]: reorderedList.map(o => o.id)
+    }));
+    
+    // Create position updates for backend
+    const orderPositions = reorderedList.map((order, index) => ({
+      order_id: order.id,
+      position: index
+    }))
+    
+    console.log('📤 Sending to backend:', JSON.stringify(orderPositions, null, 2));
+    
+    try {
+      // Call backend API to persist the reorder
+      console.log('🚀 Calling backend API...');
+      const result = await ordersService.reorder(columnId, orderPositions)
+      console.log('✅ Backend response:', result);
+      
+      // Refresh to get the authoritative backend order, but keep optimistic state until refresh completes
+      console.log('🔄 Refreshing backend data...');
+      if (onOrderUpdate) {
+        // Small delay to ensure backend transaction completes
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await onOrderUpdate()
+        
+        // Only clear optimistic state AFTER refresh completes
+        console.log('🔄 Clearing optimistic state after successful refresh...');
+        setOptimisticOrderMap(prev => {
+          const newMap = { ...prev };
+          delete newMap[columnId];
+          return newMap;
+        });
+      }
+      console.log('✅ Backend order now showing');
+      
+      // Mark reorder operation as complete
+      setActiveReorderOperations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(columnId);
+        return newSet;
+      });
+      
+      toast.success('Order reordered successfully')
+    } catch (error: any) {
+      console.error('❌ Failed to reorder orders:', error)
+      // Clear optimistic state on error to revert to original order
+      setOptimisticOrderMap(prev => {
+        const newMap = { ...prev };
+        delete newMap[columnId];
+        return newMap;
+      });
+      
+      // Mark reorder operation as complete (even on error)
+      setActiveReorderOperations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(columnId);
+        return newSet;
+      });
+      
+      toast.error(error?.error || 'Failed to reorder orders')
+    }
+  }, [orders, onOrderUpdate])
 
+  // Global drag monitor
+  useEffect(() => {
+    const cleanup = monitorForElements({
+      onDrop: ({ source, location }) => {
+        const dragData = source.data as DragData
+        const dropTargets = location.current.dropTargets
+        
+        if (!dropTargets.length) {
+          setDraggedOrderId(null)
+          setDraggedWorkCentreId(null)
+          return
+        }
 
-  /**
-   * Persists work centre column order to backend
-   * Includes comprehensive error handling and user feedback
-   * Validates permissions and authentication before saving
-   */
+        const dropData = dropTargets[0].data as unknown as DropData
+
+        if (dragData.type === 'order') {
+          const orderId = dragData.id
+          const targetColumnId = dropData.columnId
+          const targetIndex = dropData.index
+          const insertionPoint = dropData.insertionPoint
+
+          if (dragData.sourceColumnId === targetColumnId && targetIndex !== undefined) {
+            // Reorder within same column
+            if (dragData.sourceIndex !== undefined && dragData.sourceIndex !== targetIndex) {
+              handleReorderInColumn(targetColumnId, dragData.sourceIndex, targetIndex, insertionPoint)
+            }
+          } else {
+            // Move between columns
+            onOrderMove?.(orderId, targetColumnId, targetIndex)
+          }
+        } else if (dragData.type === 'work-centre') {
+          // Handle work centre reordering in configuration dialog
+          const workCentreId = dragData.id
+          const targetId = dropData.columnId
+          
+          setWorkCentreOrder(prev => {
+            const oldIndex = prev.findIndex(wc => wc.id === workCentreId)
+            const newIndex = prev.findIndex(wc => wc.id === targetId)
+            
+            if (oldIndex === -1 || newIndex === -1) return prev
+            
+            const newOrder = reorder({ 
+              list: prev, 
+              startIndex: oldIndex, 
+              finishIndex: newIndex 
+            })
+            
+            return newOrder.map((item, idx) => ({ 
+              ...item, 
+              display_order: idx + 1 
+            }))
+          })
+        }
+
+        setDraggedOrderId(null)
+        setDraggedWorkCentreId(null)
+      },
+    })
+
+    return cleanup
+  }, [onOrderMove, handleReorderInColumn])
+
   const handleSaveColumnOrder = async () => {
     try {
-      // Check authentication and permissions first
       if (!user) {
         toast.error('Authentication required. Please log in.')
         return
       }
-
       if (!hasPermission('work_centres:write')) {
         toast.error('Permission denied. You do not have access to reorder work centres.')
         return
       }
 
-      console.log('User:', user)
-      console.log('Has work_centres:write permission:', hasPermission('work_centres:write'))
-      console.log('Work centre order:', workCentreOrder)
-
-      // Map work centres to API format for reordering
-      const reorderData = workCentreOrder
-        .map((wc) => {
-          console.log(`Mapping ${wc.id} (${wc.name}) order:`, wc.display_order)
-          console.log('Types:', typeof wc.id, typeof wc.display_order)
-          return { id: Number(wc.id), display_order: Number(wc.display_order) }
-        })
-
-      console.log('Reorder data to send:', reorderData)
-      console.log('Reorder data JSON:', JSON.stringify(reorderData, null, 2))
+      const reorderData = workCentreOrder.map((wc) => ({ 
+        id: Number(wc.id), 
+        display_order: Number(wc.display_order) 
+      }))
 
       if (reorderData.length === 0) {
         toast.error('No valid work centres to reorder')
         return
       }
 
-      console.log('About to call workCentresService.reorder...')
-      console.log('API base URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api')
-      
-      // Test authentication by making a simple API call first
-      try {
-        console.log('Testing authentication with work centres list...')
-        const testResult = await workCentresService.getAll()
-        console.log('Auth test successful, got work centres:', testResult)
-      } catch (authTestError) {
-        console.error('Auth test failed:', authTestError)
-        throw new Error('Authentication test failed. Please log in again.')
-      }
-      
-      try {
-        const result = await workCentresService.reorder(reorderData)
-        console.log('API response:', result)
-      } catch (apiError) {
-        console.error('API call failed:', apiError)
-        console.error('API error type:', typeof apiError)
-        console.error('API error constructor:', apiError?.constructor?.name)
-        if (apiError instanceof Error) {
-          console.error('Error message:', apiError.message)
-          console.error('Error stack:', apiError.stack)
-        }
-        throw apiError
-      }
-      
+      await workCentresService.reorder(reorderData)
       setIsConfigureDialogOpen(false)
       toast.success('Column order saved successfully')
       
-      // Trigger immediate refresh of work centres data from parent
       if (onWorkCentreUpdate) {
         await onWorkCentreUpdate()
       }
-    } catch (error: any) {
-      console.error('Failed to save column order:', error)
-      console.error('Error details:', {
-        message: error.message,
-        status: error.status,
-        error: error.error,
-        code: error.code,
-        stack: error.stack,
-        response: error.response
-      })
-      
+    } catch (error: unknown) {
       let errorMessage = 'Failed to save column order'
-      if (error.status === 401 || error.code === 'INVALID_TOKEN') {
-        errorMessage = 'Authentication required. Please log in again.'
-      } else if (error.status === 403) {
-        errorMessage = 'Permission denied. You do not have access to reorder work centres.'
-      } else if (error.status === 0) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (error.error) {
-        errorMessage = error.error
-      } else if (error.message) {
-        errorMessage = error.message
+      if (error && typeof error === 'object') {
+        const err = error as { status?: number; code?: string; error?: string; message?: string }
+        if (err.status === 401 || err.code === 'INVALID_TOKEN') {
+          errorMessage = 'Authentication required. Please log in again.'
+        } else if (err.status === 403) {
+          errorMessage = 'Permission denied. You do not have access to reorder work centres.'
+        } else if (err.status === 0) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else if (err.error) {
+          errorMessage = err.error
+        } else if (err.message) {
+          errorMessage = err.message
+        }
       }
-      
       toast.error(errorMessage)
     }
   }
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
-
-  const getOrdersForWorkCentre = (workCentreId: number) => {
-    return orders.filter((order) => order.current_work_centre_id === workCentreId)
-  }
-
-  const isOrderLocked = (orderId: number) => {
-    return lockedOrders.has(orderId.toString())
-  }
-
-  const getOrderLockInfo = (orderId: number) => {
-    const lockingUser = connectedUsers.find((user) => user.lockingOrder === orderId.toString())
-    return lockingUser ? lockingUser.userName : "Another user"
-  }
-
-  const handleDragOverLocal = (event: DragOverEvent) => {
-    const { over } = event
-    setOverId(over?.id ? String(over.id) : null)
-    handleDragOver(event)
-  }
-
-  const handleDragEndLocal = (event: DragEndEvent) => {
-    setOverId(null)
-    handleDragEnd(event)
-  }
-
-  // Sort work centres by display_order
-  const sortedWorkCentres = [...workCentres].sort((a, b) => a.display_order - b.display_order)
-  const activeWorkCentres = sortedWorkCentres.filter((workCentre) => workCentre.is_active)
-  const workCentreIds = activeWorkCentres.map(wc => wc.id)
-
-  // Find the active order for drag overlay
-  const activeOrder = activeOrderId ? orders.find(order => order.id === activeOrderId) : null
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-primary-blue">Manufacturing Planning Board</h2>
+          <h2 className="text-2xl font-bold text-primary-blue">
+            Manufacturing Planning Board
+          </h2>
           {isConnected && <OnlineUsersIndicator connectedUsers={connectedUsers} />}
         </div>
         <div className="flex gap-2">
-          <Dialog open={isConfigureDialogOpen} onOpenChange={setIsConfigureDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Configure Columns
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Configure Column Order</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Drag and drop work centres to reorder the columns on the planning board.
-                </p>
-                
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleColumnDragEnd}
-                >
-                  <SortableContext 
-                    items={workCentreOrder.map(wc => wc.id)} 
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {workCentreOrder.map((workCentre, index) => (
-                        <DraggableWorkCentreItem
-                          key={workCentre.id}
-                          workCentre={workCentre}
-                          index={index}
-                          jobCount={getOrdersForWorkCentre(workCentre.id).length}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button 
-                    onClick={handleSaveColumnOrder}
-                    disabled={!user || !hasPermission('work_centres:write')}
-                    className="flex-1"
-                  >
-                    Save Order
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => {
-                      setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
-                      setIsConfigureDialogOpen(false)
-                    }}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-                
-                {(!user || !hasPermission('work_centres:write')) && (
-                  <p className="text-xs text-red-500 mt-2">
-                    You need work centre write permissions to save changes.
-                  </p>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-          
-          <Dialog open={isAddWorkCentreDialogOpen} onOpenChange={setIsAddWorkCentreDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Work Centre
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Work Centre</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  To add a new work centre, please use the Work Centres management page from the sidebar.
-                </p>
-                <Button 
-                  onClick={() => {
-                    setIsAddWorkCentreDialogOpen(false)
-                    onNavigate?.('workcentres')
-                  }}
-                  className="w-full"
-                >
-                  Go to Work Centres Management
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            onClick={() => window.open('/tv', '_blank')} 
+            size="sm" 
+            variant="outline"
+          >
+            📺 TV Display
+          </Button>
+          <Button onClick={() => setIsAddWorkCentreDialogOpen(true)} size="sm" variant="outline">
+            <Plus className="h-4 w-4 mr-1" /> Add Work Centre
+          </Button>
+          <Button onClick={() => setIsConfigureDialogOpen(true)} size="sm" variant="outline">
+            <Settings className="h-4 w-4 mr-1" /> Configure Columns
+          </Button>
         </div>
       </div>
 
-      {/* Work Centre Details Modal */}
-      <Dialog open={!!viewDetailsWorkCentre} onOpenChange={() => setViewDetailsWorkCentre(null)}>
-        <DialogContent className="max-w-2xl">
+      {/* Configuration Dialog */}
+      <Dialog open={isConfigureDialogOpen} onOpenChange={setIsConfigureDialogOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Work Centre Details</DialogTitle>
+            <DialogTitle>Configure Column Order</DialogTitle>
           </DialogHeader>
-          {viewDetailsWorkCentre && (
-            <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Basic Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Name:</span>
-                      <span className="font-medium">{viewDetailsWorkCentre.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        viewDetailsWorkCentre.is_active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {viewDetailsWorkCentre.is_active ? '🟢 Active' : '🔴 Inactive'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Capacity:</span>
-                      <span className="font-medium">{viewDetailsWorkCentre.capacity} jobs</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Current Jobs:</span>
-                      <span className="font-medium">{viewDetailsWorkCentre.current_jobs} jobs</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Utilization:</span>
-                      <span className="font-medium">
-                        {Math.round((viewDetailsWorkCentre.current_jobs / viewDetailsWorkCentre.capacity) * 100)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Machines</h3>
-                  <div className="space-y-1">
-                    {viewDetailsWorkCentre.machines.length > 0 ? (
-                      viewDetailsWorkCentre.machines.map((machine, index) => (
-                        <div key={index} className="px-2 py-1 bg-gray-100 rounded text-sm">
-                          {machine.name}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500 text-sm">No machines assigned</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Current Orders */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Current Orders</h3>
-                <div className="border rounded-lg">
-                  {getOrdersForWorkCentre(viewDetailsWorkCentre.id).length > 0 ? (
-                    <div className="max-h-60 overflow-y-auto">
-                      {getOrdersForWorkCentre(viewDetailsWorkCentre.id).map((order) => (
-                        <div key={order.id} className="flex items-center justify-between p-3 border-b last:border-b-0">
-                          <div>
-                            <p className="font-medium text-sm">{order.order_number}</p>
-                            <p className="text-xs text-gray-600">{order.stock_code} - {order.description}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm">
-                              {order.quantity_completed}/{order.quantity_to_make}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {Math.round((order.quantity_completed / order.quantity_to_make) * 100)}% complete
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      No orders currently assigned
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-4 border-t">
-                <Button 
-                  onClick={() => {
-                    setViewDetailsWorkCentre(null)
-                    onNavigate?.('workcentres')
-                  }}
-                  className="flex-1"
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Drag and drop work centres to reorder the columns on the planning board.
+            </p>
+            
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {workCentreOrder.map((workCentre, index) => (
+                <DropZone
+                  key={workCentre.id}
+                  columnId={workCentre.id}
+                  isActive={true}
                 >
-                  Edit Work Centre
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => setViewDetailsWorkCentre(null)}
-                  className="flex-1"
-                >
-                  Close
-                </Button>
-              </div>
+                  <DraggableWorkCentreItem
+                    workCentre={workCentre}
+                    index={index}
+                    jobCount={getOrdersForWorkCentre(workCentre.id).length}
+                    onDragStart={handleWorkCentreDragStart}
+                    isDragging={draggedWorkCentreId === workCentre.id}
+                  />
+                </DropZone>
+              ))}
             </div>
-          )}
+
+            <div className="flex gap-2 pt-4 border-t">
+              <Button 
+                onClick={handleSaveColumnOrder}
+                disabled={!user || !hasPermission('work_centres:write')}
+                className="flex-1"
+              >
+                Save Order
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
+                  setIsConfigureDialogOpen(false)
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+            
+            {(!user || !hasPermission('work_centres:write')) && (
+              <p className="text-xs text-red-500 mt-2">
+                You need work centre write permissions to save changes.
+              </p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Clear All Jobs Confirmation Modal */}
-      <Dialog open={!!clearJobsWorkCentre} onOpenChange={() => setClearJobsWorkCentre(null)}>
+      {/* Add Work Centre Dialog */}
+      <Dialog open={isAddWorkCentreDialogOpen} onOpenChange={setIsAddWorkCentreDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Clear All Jobs</DialogTitle>
+            <DialogTitle>Add Work Centre</DialogTitle>
           </DialogHeader>
-          {clearJobsWorkCentre && (
-            <div className="space-y-4">
-              <p className="text-gray-600">
-                Are you sure you want to clear all jobs from <strong>{clearJobsWorkCentre.name}</strong>?
-              </p>
-              
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  <strong>This action will:</strong>
-                </p>
-                <ul className="text-sm text-yellow-700 mt-1 ml-4 list-disc">
-                  <li>Move {getOrdersForWorkCentre(clearJobsWorkCentre.id).length} orders to &quot;Unassigned&quot; status</li>
-                  <li>Remove all orders from this work centre</li>
-                  <li>Allow you to reassign them later</li>
-                </ul>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Orders will not be deleted, only moved to the &quot;Unassigned&quot; area 
-                  where they can be reassigned to other work centres.
-                </p>
-              </div>
-              
-              <div className="flex gap-2 pt-4">
-                <Button 
-                  variant="destructive"
-                  onClick={async () => {
-                    try {
-                      const ordersToMove = getOrdersForWorkCentre(clearJobsWorkCentre.id)
-                      
-                      // Move all orders to "unassigned" status
-                      for (const order of ordersToMove) {
-                        // Use the existing onOrderMove function with null work centre ID for unassigned
-                        await onOrderMove?.(order.id, 0) // 0 or null for unassigned
-                      }
-                      
-                      setClearJobsWorkCentre(null)
-                      toast.success(`Cleared ${ordersToMove.length} jobs from ${clearJobsWorkCentre.name}`)
-                    } catch (error: any) {
-                      console.error('Failed to clear jobs:', error)
-                      toast.error('Failed to clear jobs. Please try again.')
-                    }
-                  }}
-                  className="flex-1"
-                >
-                  Clear All Jobs
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => setClearJobsWorkCentre(null)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              To add a new work centre, please use the Work Centres management page from the sidebar.
+            </p>
+            <Button 
+              onClick={() => {
+                setIsAddWorkCentreDialogOpen(false)
+                onNavigate?.('workcentres')
+              }}
+              className="w-full"
+            >
+              Go to Work Centres Management
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOverLocal}
-        onDragEnd={handleDragEndLocal}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-          <SortableContext items={workCentreIds} strategy={verticalListSortingStrategy}>
-            {activeWorkCentres.map((workCentre) => {
-              const workCentreOrders = getOrdersForWorkCentre(workCentre.id)
-              const isOver = overId === workCentre.id.toString()
-
-              return (
-                <DroppableWorkCentre
-                  key={workCentre.id}
-                  workCentre={workCentre}
-                  orders={workCentreOrders}
-                  isOver={isOver}
-                  isOrderLocked={isOrderLocked}
-                  getOrderLockInfo={getOrderLockInfo}
-                  activeOrderId={activeOrderId}
-                  onNavigate={onNavigate}
-                  setViewDetailsWorkCentre={setViewDetailsWorkCentre}
-                  setClearJobsWorkCentre={setClearJobsWorkCentre}
-                  getOrdersForWorkCentre={getOrdersForWorkCentre}
-                />
-              )
-            })}
-          </SortableContext>
-        </div>
-
-        <DragOverlay>
-          {activeOrder && (
-            <div className="opacity-90 transform rotate-3 shadow-lg">
-              <OrderCard
-                order={activeOrder}
-                isDragging={true}
-                isLocked={false}
-              />
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+      {/* Main Planning Board Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {activeWorkCentres.map((workCentre) => {
+          const workCentreOrders = getOrdersForWorkCentre(workCentre.id)
+          
+          return (
+            <DropZone
+              key={workCentre.id}
+              columnId={workCentre.id}
+              isActive={true}
+            >
+              <Card className="h-fit min-h-[400px] transition-all duration-200">
+                <CardHeader className="pb-3 bg-gray-50 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-semibold text-gray-900">
+                      {workCentre.name} ({workCentreOrders.length} jobs)
+                    </CardTitle>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Settings className="h-4 w-4 text-gray-500" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onNavigate?.('workcentres')}>
+                          Configure Work Centre
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => console.log('View details:', workCentre)}>
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => console.log('Clear jobs:', workCentre)}
+                          disabled={workCentreOrders.length === 0}
+                        >
+                          Clear All Jobs
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 p-3">
+                  {workCentreOrders.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg transition-colors border-gray-200">
+                      <p className="text-sm">No orders assigned</p>
+                      <p className="text-xs">Drag orders here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {/* Drop zone at the top */}
+                      <DropZone
+                        columnId={workCentre.id}
+                        index={0}
+                        isActive={true}
+                        insertionPoint="before"
+                      >
+                        <div className="h-1" />
+                      </DropZone>
+                      
+                      {workCentreOrders.map((order, index) => (
+                        <React.Fragment key={order.id}>
+                          <DropZone
+                            columnId={workCentre.id}
+                            index={index}
+                            isActive={true}
+                            insertionPoint="replace"
+                          >
+                            <DraggableOrderCard
+                              order={order}
+                              columnId={workCentre.id}
+                              index={index}
+                              isDragging={draggedOrderId === order.id}
+                              onDragStart={handleOrderDragStart}
+                            />
+                          </DropZone>
+                          
+                          {/* Drop zone after each card */}
+                          <DropZone
+                            columnId={workCentre.id}
+                            index={index + 1}
+                            isActive={true}
+                            insertionPoint="after"
+                          >
+                            <div className="h-1" />
+                          </DropZone>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </DropZone>
+          )
+        })}
+      </div>
     </div>
+  )
+}
+
+export function PlanningBoard({ 
+  orders, 
+  workCentres, 
+  onOrderMove, 
+  onNavigate, 
+  onWorkCentreUpdate, 
+  tvMode 
+}: PlanningBoardProps) {
+  if (tvMode) {
+    return <TVPlanningBoard orders={orders} workCentres={workCentres} />
+  }
+
+  return (
+    <MainPlanningBoard 
+      orders={orders} 
+      workCentres={workCentres} 
+      onOrderMove={onOrderMove} 
+      onNavigate={onNavigate} 
+      onWorkCentreUpdate={onWorkCentreUpdate} 
+    />
   )
 }

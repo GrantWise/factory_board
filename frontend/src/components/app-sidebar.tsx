@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { LayoutDashboard, Kanban, Package, Factory, BarChart3, Settings } from "lucide-react"
+import Image from "next/image"
 
 import {
   Sidebar,
@@ -63,7 +64,7 @@ export function AppSidebar({ currentPage = "dashboard", onNavigate, ...props }: 
       <SidebarHeader>
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-blue text-white">
-            <Factory className="h-4 w-4" />
+            <Image src="/translution_logo.svg" alt="Factory Logo" width={32} height={32} />
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-bold text-primary-blue">FactoryBoard</span>
@@ -99,7 +100,6 @@ export function AppSidebar({ currentPage = "dashboard", onNavigate, ...props }: 
           <SidebarMenuItem>
             <SidebarMenuButton>
               <Avatar className="h-6 w-6">
-                <AvatarImage src="/placeholder-user.jpg" />
                 <AvatarFallback>JD</AvatarFallback>
               </Avatar>
               <div className="flex flex-col text-left">

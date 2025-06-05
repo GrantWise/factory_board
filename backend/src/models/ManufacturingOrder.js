@@ -108,6 +108,8 @@ class ManufacturingOrder {
       LEFT JOIN users u ON mo.created_by = u.id
       ${whereClause}
       ORDER BY 
+        mo.current_work_centre_id ASC,
+        mo.work_centre_position ASC,
         CASE mo.status 
           WHEN 'overdue' THEN 1
           WHEN 'in_progress' THEN 2
@@ -306,6 +308,56 @@ class ManufacturingOrder {
     // Find the first step that's not complete
     const currentStep = manufacturingSteps.find(step => step.status !== 'complete');
     return currentStep ? currentStep.operation_name : manufacturingSteps[manufacturingSteps.length - 1].operation_name;
+  }
+
+  // Reorder orders within a work centre
+  reorderInWorkCentre(workCentreId, orderPositions) {
+    const transaction = this.db.transaction(() => {
+      // First, verify all orders belong to the specified work centre
+      const orderIds = orderPositions.map(op => op.order_id);
+      const placeholders = orderIds.map(() => '?').join(',');
+      
+      const verifyStmt = this.db.prepare(`
+        SELECT id FROM ${this.table} 
+        WHERE id IN (${placeholders}) AND current_work_centre_id = ?
+      `);
+      
+      const existingOrders = verifyStmt.all(...orderIds, workCentreId);
+      
+      if (existingOrders.length !== orderIds.length) {
+        throw new Error('Some orders do not belong to the specified work centre');
+      }
+
+      // Update positions
+      const updateStmt = this.db.prepare(`
+        UPDATE ${this.table} 
+        SET work_centre_position = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND current_work_centre_id = ?
+      `);
+
+      let totalChanges = 0;
+      for (const { order_id, position } of orderPositions) {
+        console.log(`🔄 Updating order ${order_id} to position ${position} in work centre ${workCentreId}`);
+        const result = updateStmt.run(position, order_id, workCentreId);
+        console.log(`✅ Update result for order ${order_id}:`, result);
+        totalChanges += result.changes;
+      }
+
+      return { changes: totalChanges };
+    });
+
+    return transaction();
+  }
+
+  // Update position when moving between work centres
+  moveToWorkCentre(orderId, newWorkCentreId, newPosition = 0) {
+    const stmt = this.db.prepare(`
+      UPDATE ${this.table} 
+      SET current_work_centre_id = ?, work_centre_position = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    return stmt.run(newWorkCentreId, newPosition, orderId);
   }
 }
 

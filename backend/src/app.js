@@ -66,7 +66,7 @@ const limiter = rateLimit({
 // Apply rate limiting to auth endpoints (more lenient in development)
 app.use('/api/auth', rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 5 : 50, // More attempts in development
+  max: process.env.NODE_ENV === 'production' ? 25 : 100, // Increased from 5 to 25 for production
   message: {
     error: 'Too many authentication attempts',
     code: 'AUTH_RATE_LIMIT_EXCEEDED'

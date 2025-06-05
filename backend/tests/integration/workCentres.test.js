@@ -45,11 +45,11 @@ describe('Work Centres Endpoints', () => {
 
       const body = assertApiResponse(response, 200);
       
-      expect(body).toHaveProperty('workCentres');
-      expect(Array.isArray(body.workCentres)).toBe(true);
-      expect(body.workCentres.length).toBe(3);
+      expect(body).toHaveProperty('work_centres');
+      expect(Array.isArray(body.work_centres)).toBe(true);
+      expect(body.work_centres.length).toBe(3);
       
-      const workCentre = body.workCentres[0];
+      const workCentre = body.work_centres[0];
       expect(workCentre).toHaveProperty('id');
       expect(workCentre).toHaveProperty('name');
       expect(workCentre).toHaveProperty('code');
@@ -96,8 +96,8 @@ describe('Work Centres Endpoints', () => {
       const body = assertApiResponse(response, 200);
       
       // Should not include inactive work centre
-      expect(body.workCentres.length).toBe(3);
-      expect(body.workCentres.every(wc => wc.is_active === 1)).toBe(true);
+      expect(body.work_centres.length).toBe(3);
+      expect(body.work_centres.every(wc => wc.is_active === 1)).toBe(true);
     });
 
     test('should include inactive work centres when requested', async () => {
@@ -108,7 +108,7 @@ describe('Work Centres Endpoints', () => {
       const body = assertApiResponse(response, 200);
       
       // Should include inactive work centre
-      expect(body.workCentres.length).toBeGreaterThan(3);
+      expect(body.work_centres.length).toBeGreaterThan(3);
     });
   });
 
@@ -122,10 +122,10 @@ describe('Work Centres Endpoints', () => {
 
       const body = assertApiResponse(response, 200);
       
-      expect(body).toHaveProperty('workCentre');
-      expect(body.workCentre.id).toBe(workCentreId);
-      expect(body.workCentre.name).toBe(testWorkCentres[0].name);
-      expect(body.workCentre).toHaveProperty('machines');
+      expect(body).toHaveProperty('work_centre');
+      expect(body.work_centre.id).toBe(workCentreId);
+      expect(body.work_centre.name).toBe(testWorkCentres[0].name);
+      expect(body.work_centre).toHaveProperty('machines');
     });
 
     test('should return 404 for non-existent work centre', async () => {
@@ -378,7 +378,7 @@ describe('Work Centres Endpoints', () => {
         .set('Authorization', createAuthHeader(adminToken))
         .send([]);
 
-      assertErrorResponse(response, 400, 'INVALID_DATA');
+      assertErrorResponse(response, 400, 'VALIDATION_ERROR');
     });
   });
 
