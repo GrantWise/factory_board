@@ -30,8 +30,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Download, Upload } from "lucide-react"
-import type { ManufacturingOrder } from "@/types/manufacturing"
+import { Label } from "@/components/ui/label"
+import { Search, Download, Upload, X } from "lucide-react"
+import type { ManufacturingOrder, WorkCentre } from "@/types/manufacturing"
 
 // Types for import functionality
 interface RawOrderData {
@@ -77,24 +78,29 @@ interface ImportSummary {
   details: ImportDetail[]
 }
 
-interface ImportError {
-  error?: string
-  message?: string
-}
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import Papa from "papaparse"
 import React from "react"
 import { ordersService } from "@/lib/api-services"
+import { notify } from "@/lib/notifications"
+import { type AppError } from "@/lib/error-handling"
 
 interface OrdersTableProps {
   /** Array of manufacturing orders in API format */
   orders: ManufacturingOrder[]
+  /** Array of work centres for filtering */
+  workCentres?: WorkCentre[]
 }
 
-export function OrdersTable({ orders }: OrdersTableProps) {
+export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
+  const [workCentreFilter, setWorkCentreFilter] = useState("all")
+  const [dueDateFilter, setDueDateFilter] = useState({
+    from: "",
+    to: ""
+  })
   const [isExporting, setIsExporting] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -111,8 +117,26 @@ export function OrdersTable({ orders }: OrdersTableProps) {
 
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     const matchesPriority = priorityFilter === "all" || order.priority === priorityFilter
+    
+    const matchesWorkCentre = workCentreFilter === "all" || 
+      (workCentreFilter === "unassigned" && !order.current_work_centre_id) ||
+      order.current_work_centre_id?.toString() === workCentreFilter
 
-    return matchesSearch && matchesStatus && matchesPriority
+    const matchesDueDates = (() => {
+      if (!dueDateFilter.from && !dueDateFilter.to) return true
+      if (!order.due_date) return false
+      
+      const orderDate = new Date(order.due_date)
+      const fromDate = dueDateFilter.from ? new Date(dueDateFilter.from) : null
+      const toDate = dueDateFilter.to ? new Date(dueDateFilter.to) : null
+      
+      if (fromDate && orderDate < fromDate) return false
+      if (toDate && orderDate > toDate) return false
+      
+      return true
+    })()
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesWorkCentre && matchesDueDates
   })
 
   /**
@@ -215,7 +239,10 @@ export function OrdersTable({ orders }: OrdersTableProps) {
       
     } catch (error) {
       console.error('Export failed:', error)
-      // Note: Could add toast notification here if available
+      notify.error(error as AppError, {
+        operation: 'export_orders',
+        entity: 'orders'
+      })
     } finally {
       setIsExporting(false)
     }
@@ -328,15 +355,27 @@ export function OrdersTable({ orders }: OrdersTableProps) {
           setImportSummary(response)
           setImportSuccess(`Import completed: ${response.created} created, ${response.updated} updated, ${response.skipped} skipped, ${response.errors} errors`)
         } catch (err: unknown) {
-          const importErr = err as ImportError
-          setImportError("Import failed: " + (importErr.error || importErr.message || "Unknown error"))
+          notify.error(err as AppError, {
+            operation: 'import_orders',
+            entity: 'orders'
+          })
+          setImportError("Import failed. Please check the error details and try again.")
         } finally {
           setImporting(false)
           setIsImportDialogOpen(false)
         }
       },
       error: (err) => {
-        setImportError("Failed to parse CSV: " + err.message)
+        const parseError = {
+          error: `Failed to parse CSV: ${err.message}`,
+          code: 'CSV_PARSE_ERROR',
+          status: 400
+        } as AppError
+        notify.error(parseError, {
+          operation: 'import_orders',
+          entity: 'CSV file'
+        })
+        setImportError("Failed to parse CSV file. Please check the file format and try again.")
         setImporting(false)
       },
     })
@@ -400,39 +439,100 @@ export function OrdersTable({ orders }: OrdersTableProps) {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search orders..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="not_started">Not Started</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="complete">Complete</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="not_started">Not Started</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="complete">Complete</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Priorities</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-          </SelectContent>
-        </Select>
+        
+        {/* Advanced Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="flex-1">
+            <Label htmlFor="work-centre-filter">Work Centre</Label>
+            <Select value={workCentreFilter} onValueChange={setWorkCentreFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All Work Centres" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Work Centres</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {workCentres.filter(wc => wc.is_active).map(wc => (
+                  <SelectItem key={wc.id} value={wc.id.toString()}>
+                    {wc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div>
+            <Label htmlFor="due-date-from">Due Date From</Label>
+            <Input
+              id="due-date-from"
+              type="date"
+              value={dueDateFilter.from}
+              onChange={(e) => setDueDateFilter(prev => ({ ...prev, from: e.target.value }))}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="due-date-to">Due Date To</Label>
+            <Input
+              id="due-date-to"
+              type="date"
+              value={dueDateFilter.to}
+              onChange={(e) => setDueDateFilter(prev => ({ ...prev, to: e.target.value }))}
+            />
+          </div>
+          
+          {/* Clear Filters Button */}
+          {(statusFilter !== "all" || priorityFilter !== "all" || workCentreFilter !== "all" || dueDateFilter.from || dueDateFilter.to) && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setStatusFilter("all")
+                setPriorityFilter("all")
+                setWorkCentreFilter("all")
+                setDueDateFilter({ from: "", to: "" })
+                setSearchTerm("")
+              }}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear Filters
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Table */}

@@ -11,9 +11,10 @@ interface OrderCardProps {
   isDragging?: boolean
   isLocked?: boolean
   lockedBy?: string
+  onClick?: () => void
 }
 
-export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardProps) {
+export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick }: OrderCardProps) {
   const completionPercentage = (order.quantity_completed / order.quantity_to_make) * 100
 
   const getStatusBadge = (status: string) => {
@@ -71,7 +72,18 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy }: OrderCardPr
       <CardContent className="p-4 space-y-3">
         {/* Header with Order Number and Status */}
         <div className="flex items-start justify-between">
-          <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
+          <h3 
+            className={cn(
+              "font-semibold text-gray-900",
+              onClick && "cursor-pointer hover:text-blue-600 transition-colors"
+            )}
+            onClick={onClick ? (e) => {
+              e.stopPropagation()
+              onClick()
+            } : undefined}
+          >
+            {order.order_number}
+          </h3>
           {isLocked ? (
             <div className="flex items-center gap-1 text-red-600">
               <Lock className="h-3 w-3" />

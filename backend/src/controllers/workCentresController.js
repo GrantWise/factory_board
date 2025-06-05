@@ -26,9 +26,10 @@ class WorkCentresController {
       const workCentre = WorkCentre.findById(req.params.id);
 
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
@@ -47,9 +48,10 @@ class WorkCentresController {
 
       // Check if code already exists
       if (WorkCentre.codeExists(workCentreData.code)) {
-        return res.status(409).json({
-          error: 'Work centre code already exists',
-          code: 'DUPLICATE_CODE'
+        return next({
+          status: 409,
+          code: 'DUPLICATE_CODE',
+          message: 'Work centre code already exists'
         });
       }
 

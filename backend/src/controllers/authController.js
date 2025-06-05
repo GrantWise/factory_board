@@ -14,9 +14,10 @@ class AuthController {
       const { username, password } = req.body;
       
       if (!username || !password) {
-        return res.status(400).json({
-          error: 'Username and password are required',
-          code: 'MISSING_CREDENTIALS'
+        return next({
+          status: 400,
+          code: 'MISSING_CREDENTIALS',
+          message: 'Username and password are required'
         });
       }
 
@@ -54,9 +55,10 @@ class AuthController {
       const { refresh_token } = req.body;
       
       if (!refresh_token) {
-        return res.status(400).json({
-          error: 'Refresh token is required',
-          code: 'MISSING_REFRESH_TOKEN'
+        return next({
+          status: 400,
+          code: 'MISSING_REFRESH_TOKEN',
+          message: 'Refresh token is required'
         });
       }
 

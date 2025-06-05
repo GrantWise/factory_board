@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, Rea
 import { User } from '@/types/manufacturing';
 import { authService } from '@/lib/api-services';
 import { api } from '@/lib/api';
+import { notify } from '@/lib/notifications';
+import { type AppError, isAuthError, shouldLogError } from '@/lib/error-handling';
 
 interface AuthContextType {
   user: User | null;
@@ -85,22 +87,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('refresh_token', response.refresh_token);
       }
     } catch (error: unknown) {
-      const err = error as { message?: string; error?: string; status?: number; code?: string }
-      console.error('Login failed:', {
-        message: err?.message || 'Unknown error',
-        error: err?.error || 'No error details',
-        status: err?.status || 'No status',
-        code: err?.code || 'No code'
+      const appError = error as AppError;
+      
+      if (shouldLogError(appError)) {
+        console.error('Login failed:', appError);
+      }
+      
+      // Show error notification to user
+      notify.error(appError, {
+        operation: 'login',
+        entity: 'user'
       });
       
-      // Re-throw with better error structure
-      const errorToThrow = {
-        error: err?.error || err?.message || 'Login failed',
-        code: err?.code || 'LOGIN_FAILED',
-        status: err?.status || 500
-      };
-      
-      throw errorToThrow;
+      throw appError;
     }
   };
 
@@ -146,14 +145,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(response.user);
           }
         } catch (error: unknown) {
+          const appError = error as AppError;
+          
           // Check if it's a rate limiting error
-          const err = error as { status?: number };
-          if (err.status === 429) {
+          if (appError.status === 429) {
             // Rate limited - skip auth check for now
             if (isMounted) {
               setIsLoading(false);
             }
             return;
+          }
+          
+          // Log non-auth errors
+          if (shouldLogError(appError) && !isAuthError(appError)) {
+            console.error('Auth initialization failed:', appError);
           }
           
           // Other auth errors - clear tokens

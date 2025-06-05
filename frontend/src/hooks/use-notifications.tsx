@@ -1,30 +1,45 @@
 "use client"
-import { toast } from "@/components/ui/use-toast"
+import { notify } from "@/lib/notifications"
+import { type AppError } from "@/lib/error-handling"
+import { toast } from "sonner"
 
 interface UseNotificationsReturn {
   showNotification: (message: string, type?: "info" | "warning" | "error" | "success") => void
-  handleApiError: (error: any, context?: string) => void
+  handleApiError: (error: AppError, context?: string) => void
 }
 
 export function useNotifications(): UseNotificationsReturn {
   const showNotification = (message: string, type: "info" | "warning" | "error" | "success" = "info") => {
-    toast({
-      title: type.charAt(0).toUpperCase() + type.slice(1),
-      description: message,
-      variant: type === "error" ? "destructive" : "default",
-    })
+    switch (type) {
+      case "error":
+        notify.error(message)
+        break
+      case "warning":
+        notify.warning(message)
+        break
+      case "success":
+        toast.success(message)
+        break
+      case "info":
+      default:
+        notify.info(message)
+        break
+    }
   }
 
-  const handleApiError = (error: any, context = "") => {
+  const handleApiError = (error: AppError, context = "") => {
     if (error.status === 423) {
-      showNotification(
-        `Cannot move order: ${error.data.lockedBy} is currently moving ${error.data.orderNumber}`,
-        "warning",
-      )
+      const lockMessage = error.details?.lockedBy && error.details?.orderNumber 
+        ? `Cannot move order: ${error.details.lockedBy} is currently moving ${error.details.orderNumber}`
+        : "Order is currently locked by another user"
+      notify.warning(lockMessage)
     } else if (error.status === 409) {
-      showNotification("Order was modified by another user. Please refresh and try again.", "error")
+      notify.error("Order was modified by another user. Please refresh and try again.")
     } else {
-      showNotification(`Failed to ${context}: ${error.message}`, "error")
+      notify.error(error, {
+        operation: context || 'operation',
+        entity: 'order'
+      })
     }
   }
 

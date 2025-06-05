@@ -22,6 +22,7 @@ import { DashboardOverview } from "@/components/dashboard-overview"
 import { PlanningBoard } from "@/components/planning-board"
 import { OrdersTable } from "@/components/orders-table"
 import { WorkCentresManagement } from "@/components/work-centres-management"
+import { UsersManagement } from "@/components/users-management"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -36,12 +37,14 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { useApiData } from "@/hooks/use-api-data"
 import { ordersService, workCentresService } from "@/lib/api-services"
 import type { DashboardMetrics } from "@/types/manufacturing"
-import { Loader2, Sun, Moon } from "lucide-react"
+import { Loader2, Sun, Moon, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState("dashboard")
   const { theme, setTheme } = useTheme()
+  const { hasRole } = useAuth()
   
   // Fetch orders from API
   const {
@@ -191,6 +194,8 @@ export default function Dashboard() {
         return "Orders Management"
       case "analytics":
         return "Analytics"
+      case "users":
+        return "User Management"
       case "settings":
         return "Settings"
       default:
@@ -224,13 +229,22 @@ export default function Dashboard() {
       case "workcentres":
         return <WorkCentresManagement workCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
-        return <OrdersTable orders={orders} />
+        return <OrdersTable orders={orders} workCentres={workCentres} />
       case "analytics":
         return (
           <div className="flex items-center justify-center h-64">
             <p className="text-gray-500">Analytics page coming soon...</p>
           </div>
         )
+      case "users":
+        if (!hasRole("admin")) {
+          return (
+            <div className="flex items-center justify-center h-64">
+              <p className="text-gray-500">Access denied. Admin role required.</p>
+            </div>
+          )
+        }
+        return <UsersManagement />
       case "settings":
         return (
           <div className="flex items-center justify-center h-64">
@@ -260,7 +274,13 @@ export default function Dashboard() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {(ordersLoading || workCentresLoading) && (
+              <div className="flex items-center gap-1 text-xs text-sidebar-foreground/70">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                <span className="hidden sm:inline">Refreshing...</span>
+              </div>
+            )}
             <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
               <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />

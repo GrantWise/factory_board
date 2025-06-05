@@ -48,9 +48,10 @@ class OrdersController {
       const order = ManufacturingOrder.findById(req.params.id);
 
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -71,9 +72,10 @@ class OrdersController {
 
       // Check if order number already exists
       if (ManufacturingOrder.orderNumberExists(orderData.order_number)) {
-        return res.status(409).json({
-          error: 'Order number already exists',
-          code: 'DUPLICATE_ORDER_NUMBER'
+        return next({
+          status: 409,
+          code: 'DUPLICATE_ORDER_NUMBER',
+          message: 'Order number already exists'
         });
       }
 
@@ -81,9 +83,10 @@ class OrdersController {
       if (orderData.current_work_centre_id) {
         const workCentre = WorkCentre.findById(orderData.current_work_centre_id);
         if (!workCentre) {
-          return res.status(400).json({
-            error: 'Invalid work centre ID',
-            code: 'INVALID_WORK_CENTRE'
+          return next({
+            status: 400,
+            code: 'INVALID_WORK_CENTRE',
+            message: 'Invalid work centre ID'
           });
         }
       }
@@ -128,17 +131,19 @@ class OrdersController {
 
       const existingOrder = ManufacturingOrder.findById(orderId);
       if (!existingOrder) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
       // Check for order number conflicts
       if (updates.order_number && ManufacturingOrder.orderNumberExists(updates.order_number, orderId)) {
-        return res.status(409).json({
-          error: 'Order number already exists',
-          code: 'DUPLICATE_ORDER_NUMBER'
+        return next({
+          status: 409,
+          code: 'DUPLICATE_ORDER_NUMBER',
+          message: 'Order number already exists'
         });
       }
 
