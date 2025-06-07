@@ -185,19 +185,19 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
     try {
       setIsExporting(true)
       
-      // Prepare CSV headers
+      // Prepare CSV headers - using consistent naming with import requirements
       const headers = [
-        'Order Number',
-        'Stock Code', 
-        'Description',
-        'Quantity To Make',
-        'Quantity Completed',
-        'Progress %',
-        'Current Step',
-        'Priority',
-        'Status',
-        'Due Date',
-        'Work Centre'
+        'order_number',
+        'stock_code', 
+        'description',
+        'quantity_to_make',
+        'quantity_completed',
+        'progress_percent',
+        'current_step',
+        'priority',
+        'status',
+        'due_date',
+        'work_centre_code'
       ]
       
       // Convert filtered orders to CSV rows
@@ -213,8 +213,8 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
           order.quantity_completed,
           completionPercentage,
           order.current_step,
-          order.priority.toUpperCase(),
-          order.status.replace('_', ' ').toUpperCase(),
+          order.priority,
+          order.status,
           dueDate,
           order.work_centre_code || 'Unassigned'
         ].join(',')
@@ -251,7 +251,8 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
   // Helper: Check for required columns in CSV header
   function hasRequiredColumns(header: string[]): boolean {
     const required = ["order_number", "stock_code", "description", "quantity_to_make"]
-    return required.every(col => header.includes(col))
+    const normalizedHeaders = header.map(h => h.toLowerCase().replace(/\s+/g, '_').replace('%', 'percent'))
+    return required.every(col => normalizedHeaders.includes(col))
   }
 
   // Helper: Validate individual order data
@@ -308,74 +309,77 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
   }
 
   // Handle CSV file selection and import
-  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportCSV = async (file: File) => {
+    setImporting(true)
     setImportError(null)
     setImportSuccess(null)
     setImportSummary(null)
-    setImporting(true)
-    const file = e.target.files?.[0]
-    if (!file) return
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        const rows = results.data as RawOrderData[]
-        const header = results.meta.fields || []
-        if (!hasRequiredColumns(header)) {
-          setImportError("CSV is missing required columns: order_number, stock_code, description, quantity_to_make")
-          setImporting(false)
-          return
-        }
+        // Validate and clean the data
+        const cleanedRows = results.data
+          .map((row: any, index: number) => {
+            // Clean and validate each field
+            const cleanedRow = {
+              order_number: row.order_number?.trim(),
+              stock_code: row.stock_code?.trim(),
+              description: row.description?.trim(),
+              quantity_to_make: parseInt(row.quantity_to_make) || 0,
+              current_operation: row.current_operation?.trim(),
+              current_work_centre_id: parseInt(row.current_work_centre_id) || null,
+              status: row.status?.toLowerCase().trim(),
+              priority: row.priority?.toLowerCase().trim(),
+              due_date: row.due_date?.trim(),
+              start_date: row.start_date?.trim()
+            }
 
-        // Validate and clean all rows before sending to backend
-        const validationErrors: string[] = []
-        const cleanedRows: CleanedOrderData[] = []
-        
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i]
-          const validationError = validateOrderData(row, i)
-          
-          if (validationError) {
-            validationErrors.push(validationError)
-          } else {
-            cleanedRows.push(cleanOrderData(row))
-          }
-        }
+            // Validate required fields
+            if (!cleanedRow.order_number) {
+              throw new Error(`Row ${index + 1}: Order number is required`)
+            }
+            if (!cleanedRow.stock_code) {
+              throw new Error(`Row ${index + 1}: Stock code is required`)
+            }
+            if (cleanedRow.quantity_to_make <= 0) {
+              throw new Error(`Row ${index + 1}: Quantity must be greater than 0`)
+            }
 
-        // If there are validation errors, show them and stop
-        if (validationErrors.length > 0) {
-          setImportError(`Validation errors found:\n${validationErrors.slice(0, 5).join('\n')}${validationErrors.length > 5 ? `\n... and ${validationErrors.length - 5} more errors` : ''}`)
-          setImporting(false)
-          return
-        }
+            return cleanedRow
+          })
 
         // Send validated and cleaned rows to backend for processing
         try {
           const response = await ordersService.bulkImport(cleanedRows)
           setImportSummary(response)
-          setImportSuccess(`Import completed: ${response.created} created, ${response.updated} updated, ${response.skipped} skipped, ${response.errors} errors`)
+          notify.success({
+            operation: 'import_orders',
+            entity: 'orders',
+            additionalInfo: {
+              summary: `Import completed: ${response.created} created, ${response.updated} updated, ${response.skipped} skipped, ${response.errors} errors`
+            }
+          })
         } catch (err: unknown) {
           notify.error(err as AppError, {
             operation: 'import_orders',
             entity: 'orders'
           })
-          setImportError("Import failed. Please check the error details and try again.")
         } finally {
           setImporting(false)
           setIsImportDialogOpen(false)
         }
       },
       error: (err) => {
-        const parseError = {
-          error: `Failed to parse CSV: ${err.message}`,
+        notify.error({
+          status: 400,
           code: 'CSV_PARSE_ERROR',
-          status: 400
-        } as AppError
-        notify.error(parseError, {
+          message: `Failed to parse CSV: ${err.message}`
+        }, {
           operation: 'import_orders',
           entity: 'CSV file'
         })
-        setImportError("Failed to parse CSV file. Please check the file format and try again.")
         setImporting(false)
       },
     })
@@ -401,7 +405,11 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
                 type="file"
                 accept=".csv"
                 ref={fileInputRef}
-                onChange={handleImportCSV}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleImportCSV(e.target.files[0])
+                  }
+                }}
                 disabled={importing}
                 className="mb-2"
                 aria-label="import"

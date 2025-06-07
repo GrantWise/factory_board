@@ -9,6 +9,17 @@ import type {
   PlanningBoardResponse,
   DashboardMetrics,
 } from '@/types/manufacturing';
+import type {
+  ApiKey,
+  ApiKeyCreate,
+  ApiKeyUpdate,
+  ApiKeyUsage,
+  ApiKeysResponse,
+  ApiKeyResponse,
+  ApiKeyCreateResponse,
+  ApiKeyRotateResponse,
+  ApiKeyUsageResponse,
+} from '@/types/api-keys';
 
 // Authentication services
 export const authService = {
@@ -124,10 +135,11 @@ export const ordersService = {
     return api.delete(`/orders/${id}`);
   },
 
-  move: async (id: number, toWorkCentreId: number, reason?: string): Promise<{ message: string; order: ManufacturingOrder }> => {
+  move: async (id: number, toWorkCentreId: number, reason?: string, newPosition?: number): Promise<{ message: string; order: ManufacturingOrder }> => {
     return api.put(`/orders/${id}/move`, {
       to_work_centre_id: toWorkCentreId,
       reason: reason || 'user_decision',
+      new_position: newPosition
     });
   },
 
@@ -167,14 +179,10 @@ export const ordersService = {
     return api.post('/orders/import', orders);
   },
 
-  reorder: async (workCentreId: number, orderPositions: Array<{ order_id: number; position: number }>): Promise<{
-    message: string;
-    work_centre_id: number;
-    updated_count: number;
-  }> => {
+  reorder: async (workCentreId: number, orderPositions: Array<{ order_id: number; position: number }>): Promise<{ message: string; updated_count: number }> => {
     return api.post('/orders/reorder', {
       work_centre_id: workCentreId,
-      order_positions: orderPositions,
+      order_positions: orderPositions
     });
   },
 };
@@ -325,4 +333,39 @@ export const healthService = {
   check: async (): Promise<{ status: string; timestamp: string; environment: string }> => {
     return api.get('/health');
   },
+};
+
+// API Key services
+export const apiKeysService = {
+  getAll: async (): Promise<ApiKey[]> => {
+    const response = await api.get<ApiKeysResponse>('/api/admin/api-keys');
+    return response.data;
+  },
+
+  getById: async (id: number): Promise<ApiKey> => {
+    const response = await api.get<ApiKeyResponse>(`/api/admin/api-keys/${id}`);
+    return response.data;
+  },
+
+  create: async (data: ApiKeyCreate): Promise<ApiKeyCreateResponse> => {
+    return api.post<ApiKeyCreateResponse>('/api/admin/api-keys', data);
+  },
+
+  update: async (id: number, data: ApiKeyUpdate): Promise<ApiKey> => {
+    const response = await api.put<ApiKeyResponse>(`/api/admin/api-keys/${id}`, data);
+    return response.data;
+  },
+
+  rotate: async (id: number): Promise<ApiKeyRotateResponse> => {
+    return api.post<ApiKeyRotateResponse>(`/api/admin/api-keys/${id}/rotate`);
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/api/admin/api-keys/${id}`);
+  },
+
+  getUsage: async (keyId: string, timeRange: string): Promise<ApiKeyUsage> => {
+    const response = await api.get<ApiKeyUsageResponse>(`/api/admin/api-keys/${keyId}/usage?timeRange=${timeRange}`);
+    return response.data;
+  }
 };

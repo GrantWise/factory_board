@@ -52,6 +52,7 @@ import {
   monitorForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter"
 import { reorder } from "@atlaskit/pragmatic-drag-and-drop/reorder"
+import { toast } from "sonner"
 // import DropIndicator from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator"
 
 // TypeScript interfaces for drag events
@@ -83,7 +84,9 @@ interface PlanningBoardProps {
   /** Callback to refresh work centres data after reordering */
   onWorkCentreUpdate?: () => Promise<void>
   /** Callback to refresh orders data after reordering */
-  onOrderUpdate?: () => Promise<void>
+  onOrderUpdate?: (orderId: number, update: Partial<ManufacturingOrder>) => Promise<void>
+  /** Callback when orders are reordered within a work centre */
+  onOrderReorder?: (workCentreId: number, orderPositions: Array<{ order_id: number; position: number }>) => Promise<void>
   /** TV Mode: display-only, high-contrast, no controls */
   tvMode?: boolean
 }
@@ -315,7 +318,8 @@ function MainPlanningBoard({
   onOrderMove, 
   onNavigate, 
   onWorkCentreUpdate,
-  onOrderUpdate 
+  onOrderUpdate,
+  onOrderReorder
 }: Omit<PlanningBoardProps, 'tvMode'>) {
   const { user, hasPermission } = useAuth()
   const { connectedUsers, isConnected } = useWebSocket(currentUser)
@@ -394,111 +398,107 @@ function MainPlanningBoard({
     toIndex: number, 
     insertionPoint?: string
   ) => {
-    console.log('🔄 Reorder Debug:', { columnId, fromIndex, toIndex, insertionPoint });
-    
-    // Mark this work centre as having an active reorder operation
-    setActiveReorderOperations(prev => new Set(prev).add(columnId));
-    
-    // Get current orders in this work centre
-    const workCentreOrders = orders.filter(order => order.current_work_centre_id === columnId)
-    console.log('📋 Current orders:', workCentreOrders.map((o, i) => ({ index: i, id: o.id, number: o.order_number })));
-    
-    // Calculate the actual target index based on insertion point
-    let actualTargetIndex = toIndex
-    if (insertionPoint === 'before') {
-      actualTargetIndex = toIndex
-    } else if (insertionPoint === 'after') {
-      actualTargetIndex = Math.min(workCentreOrders.length - 1, toIndex)
-    } else if (insertionPoint === 'replace') {
-      actualTargetIndex = toIndex
-    }
-    
-    console.log('🎯 Target index:', actualTargetIndex);
-    
-    // Don't proceed if source and target are the same
-    if (fromIndex === actualTargetIndex) {
-      console.log('❌ Same position, skipping');
-      setActiveReorderOperations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(columnId);
-        return newSet;
-      });
+    if (activeReorderOperations.has(columnId)) {
+      console.warn('Reorder operation already in progress for column', columnId);
       return;
     }
-    
-    // Reorder the array locally first for immediate feedback
-    const reorderedList = reorder({
-      list: workCentreOrders,
-      startIndex: fromIndex,
-      finishIndex: actualTargetIndex
-    })
-    
-    console.log('🔄 Reordered list:', reorderedList.map((o, i) => ({ index: i, id: o.id, number: o.order_number })));
-    
-    // Set optimistic order immediately for instant visual feedback
-    setOptimisticOrderMap(prev => ({
-      ...prev,
-      [columnId]: reorderedList.map(o => o.id)
-    }));
-    
-    // Create position updates for backend
-    const orderPositions = reorderedList.map((order, index) => ({
-      order_id: order.id,
-      position: index
-    }))
-    
-    console.log('📤 Sending to backend:', JSON.stringify(orderPositions, null, 2));
-    
+
     try {
-      // Call backend API to persist the reorder
-      console.log('🚀 Calling backend API...');
-      const result = await ordersService.reorder(columnId, orderPositions)
-      console.log('✅ Backend response:', result);
+      setActiveReorderOperations(prev => new Set(prev).add(columnId));
+
+      // Get current orders in the column
+      const columnOrders = getOrdersForWorkCentre(columnId);
       
-      // Refresh to get the authoritative backend order, but keep optimistic state until refresh completes
-      console.log('🔄 Refreshing backend data...');
-      if (onOrderUpdate) {
-        // Small delay to ensure backend transaction completes
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await onOrderUpdate()
-        
-        // Only clear optimistic state AFTER refresh completes
-        console.log('🔄 Clearing optimistic state after successful refresh...');
-        setOptimisticOrderMap(prev => {
-          const newMap = { ...prev };
-          delete newMap[columnId];
-          return newMap;
-        });
-      }
-      console.log('✅ Backend order now showing');
+      // Reorder the array
+      const reorderedOrders = reorder({
+        list: columnOrders,
+        startIndex: fromIndex,
+        finishIndex: toIndex
+      });
       
-      // Mark reorder operation as complete
+      // Calculate new positions
+      const newPositions = reorderedOrders.map((order, index) => ({
+        order_id: order.id,
+        position: index + 1
+      }));
+
+      // Update optimistic state
+      setOptimisticOrderMap(prev => ({
+        ...prev,
+        [columnId]: reorderedOrders.map(o => o.id)
+      }));
+
+      // Send update to backend through parent component
+      await onOrderReorder?.(columnId, newPositions);
+    } catch (error) {
+      console.error('Failed to reorder orders:', error);
+      notify.error(error as AppError, {
+        operation: 'reorder_orders',
+        entity: 'orders'
+      });
+    } finally {
       setActiveReorderOperations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(columnId);
-        return newSet;
+        const next = new Set(prev);
+        next.delete(columnId);
+        return next;
       });
-      
-      toast.success('Order reordered successfully')
-    } catch (error: any) {
-      console.error('❌ Failed to reorder orders:', error)
-      // Clear optimistic state on error to revert to original order
-      setOptimisticOrderMap(prev => {
-        const newMap = { ...prev };
-        delete newMap[columnId];
-        return newMap;
-      });
-      
-      // Mark reorder operation as complete (even on error)
-      setActiveReorderOperations(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(columnId);
-        return newSet;
-      });
-      
-      toast.error(error?.error || 'Failed to reorder orders')
     }
-  }, [orders, onOrderUpdate])
+  }, [getOrdersForWorkCentre, onOrderReorder]);
+
+  const handleOrderMove = useCallback(async (
+    orderId: number,
+    toWorkCentreId: number,
+    newIndex?: number
+  ) => {
+    try {
+      // Get the order being moved
+      const order = orders.find(o => o.id === orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      // Calculate new position if specified
+      const newPosition = newIndex !== undefined ? newIndex + 1 : null;
+
+      // Update optimistic state
+      setOptimisticOrderMap(prev => {
+        const next = { ...prev };
+        
+        // Remove from old work centre
+        if (order.current_work_centre_id) {
+          next[order.current_work_centre_id] = 
+            (next[order.current_work_centre_id] || [])
+              .filter(id => id !== orderId);
+        }
+        
+        // Add to new work centre
+        if (toWorkCentreId) {
+          const targetOrders = getOrdersForWorkCentre(toWorkCentreId);
+          const newOrderIds = [...targetOrders.map(o => o.id)];
+          if (newIndex !== undefined) {
+            newOrderIds.splice(newIndex, 0, orderId);
+          } else {
+            newOrderIds.push(orderId);
+          }
+          next[toWorkCentreId] = newOrderIds;
+        }
+        
+        return next;
+      });
+
+      // Send update to backend
+      await ordersService.move(orderId, toWorkCentreId, 'planning_board_move', newPosition);
+
+      // Refresh data
+      await onOrderUpdate?.();
+    } catch (error) {
+      console.error('Failed to move order:', error);
+      notify.error(error as AppError, {
+        operation: 'move_order',
+        entity: 'order'
+      });
+    }
+  }, [orders, getOrdersForWorkCentre, onOrderUpdate]);
 
   // Global drag monitor
   useEffect(() => {
@@ -689,48 +689,48 @@ function MainPlanningBoard({
       {/* Main Planning Board Content - Hidden on mobile */}
       <div className="hidden md:block space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl md:text-2xl font-bold text-primary-blue">
-            Manufacturing Planning Board
-          </h2>
-          {isConnected && <OnlineUsersIndicator connectedUsers={connectedUsers} />}
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl md:text-2xl font-bold text-primary-blue">
+              Manufacturing Planning Board
+            </h2>
+            {isConnected && <OnlineUsersIndicator connectedUsers={connectedUsers} />}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              onClick={() => setIsCreateOrderDialogOpen(true)} 
+              size="sm" 
+              variant="default"
+              disabled={!user || !hasPermission('orders:write')}
+              className="md:h-8 h-10 touch-manipulation"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Create Order
+            </Button>
+            <Button 
+              onClick={() => window.open('/tv', '_blank')} 
+              size="sm" 
+              variant="outline"
+              className="md:h-8 h-10 touch-manipulation"
+            >
+              <Tablet className="h-4 w-4 mr-1" /> TV Display
+            </Button>
+            <Button 
+              onClick={() => setIsAddWorkCentreDialogOpen(true)} 
+              size="sm" 
+              variant="outline"
+              className="md:h-8 h-10 touch-manipulation"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Work Centre
+            </Button>
+            <Button 
+              onClick={() => setIsConfigureDialogOpen(true)} 
+              size="sm" 
+              variant="outline"
+              className="md:h-8 h-10 touch-manipulation"
+            >
+              <Settings className="h-4 w-4 mr-1" /> Configure
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            onClick={() => setIsCreateOrderDialogOpen(true)} 
-            size="sm" 
-            variant="default"
-            disabled={!user || !hasPermission('orders:write')}
-            className="md:h-8 h-10 touch-manipulation"
-          >
-            <Plus className="h-4 w-4 mr-1" /> Create Order
-          </Button>
-          <Button 
-            onClick={() => window.open('/tv', '_blank')} 
-            size="sm" 
-            variant="outline"
-            className="md:h-8 h-10 touch-manipulation"
-          >
-            <Tablet className="h-4 w-4 mr-1" /> TV Display
-          </Button>
-          <Button 
-            onClick={() => setIsAddWorkCentreDialogOpen(true)} 
-            size="sm" 
-            variant="outline"
-            className="md:h-8 h-10 touch-manipulation"
-          >
-            <Plus className="h-4 w-4 mr-1" /> Add Work Centre
-          </Button>
-          <Button 
-            onClick={() => setIsConfigureDialogOpen(true)} 
-            size="sm" 
-            variant="outline"
-            className="md:h-8 h-10 touch-manipulation"
-          >
-            <Settings className="h-4 w-4 mr-1" /> Configure
-          </Button>
-        </div>
-      </div>
 
       {/* Create Order Dialog */}
       <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
@@ -888,15 +888,35 @@ function MainPlanningBoard({
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Status</Label>
-                  <Badge className={cn(
-                    "mt-1",
-                    selectedOrder.status === 'complete' && 'bg-green-500',
-                    selectedOrder.status === 'in_progress' && 'bg-blue-500',
-                    selectedOrder.status === 'overdue' && 'bg-red-500',
-                    selectedOrder.status === 'not_started' && 'bg-gray-500'
-                  )}>
-                    {selectedOrder.status.replace('_', ' ')}
-                  </Badge>
+                  <Select
+                    value={selectedOrder.status}
+                    onValueChange={async (newStatus: ManufacturingOrder['status']) => {
+                      console.log('[PlanningBoard] Status change initiated:', { orderId: selectedOrder.id, newStatus });
+                      try {
+                        console.log('[PlanningBoard] Calling onOrderUpdate...');
+                        await onOrderUpdate?.(selectedOrder.id, { status: newStatus })
+                        console.log('[PlanningBoard] onOrderUpdate completed successfully');
+                        // Update the local state
+                        setSelectedOrder(prev => prev ? { ...prev, status: newStatus } : null)
+                        toast.success('Order status updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating order status:', error);
+                        toast.error('Failed to update order status')
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_started">Not Started</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="complete">Complete</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="on_hold">On Hold</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Priority</Label>
@@ -984,7 +1004,7 @@ function MainPlanningBoard({
                       <div key={index} className="flex items-center justify-between p-2 border rounded">
                         <div>
                           <span className="text-sm font-medium">Step {step.step_number}:</span>
-                          <span className="text-sm ml-2">{step.operation_name}</span>
+                          <span className="text-sm ml-2">{step.operation}</span>
                         </div>
                         <Badge variant={
                           step.status === 'complete' ? 'default' :
@@ -1197,7 +1217,9 @@ export function PlanningBoard({
   workCentres, 
   onOrderMove, 
   onNavigate, 
-  onWorkCentreUpdate, 
+  onWorkCentreUpdate,
+  onOrderUpdate,
+  onOrderReorder,
   tvMode 
 }: PlanningBoardProps) {
   if (tvMode) {
@@ -1205,12 +1227,14 @@ export function PlanningBoard({
   }
 
   return (
-    <MainPlanningBoard 
-      orders={orders} 
-      workCentres={workCentres} 
-      onOrderMove={onOrderMove} 
-      onNavigate={onNavigate} 
-      onWorkCentreUpdate={onWorkCentreUpdate} 
+    <MainPlanningBoard
+      orders={orders}
+      workCentres={workCentres}
+      onOrderMove={onOrderMove}
+      onNavigate={onNavigate}
+      onWorkCentreUpdate={onWorkCentreUpdate}
+      onOrderUpdate={onOrderUpdate}
+      onOrderReorder={onOrderReorder}
     />
   )
 }

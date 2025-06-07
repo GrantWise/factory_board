@@ -217,12 +217,11 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
 
       await usersService.create(userData)
       
-      const successMessage = getSuccessMessage({ 
+      toast.success(getSuccessMessage({ 
         operation: 'create_user', 
         entity: 'user',
         id: userData.username 
-      })
-      toast.success(successMessage)
+      }))
       
       setIsCreateDialogOpen(false)
       setFormData(initialFormData)
@@ -236,8 +235,10 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       if (shouldLogError(error)) {
         console.error('Failed to create user:', error)
       }
-      const errorMessage = getErrorMessage(error, { operation: 'create_user', entity: 'user' })
-      toast.error(errorMessage)
+      toast.error(getErrorMessage(error, { 
+        operation: 'create_user', 
+        entity: 'user' 
+      }))
     } finally {
       setIsSubmitting(false)
     }
@@ -267,11 +268,10 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
 
       await usersService.update(selectedUser.id, updates)
       
-      const successMessage = getSuccessMessage({ 
+      toast.success(getSuccessMessage({ 
         operation: 'update_user', 
         entity: 'user' 
-      })
-      toast.success(successMessage)
+      }))
       
       setIsEditDialogOpen(false)
       setSelectedUser(null)
@@ -286,8 +286,10 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       if (shouldLogError(error)) {
         console.error('Failed to update user:', error)
       }
-      const errorMessage = getErrorMessage(error, { operation: 'update_user', entity: 'user' })
-      toast.error(errorMessage)
+      toast.error(getErrorMessage(error, { 
+        operation: 'update_user', 
+        entity: 'user' 
+      }))
     } finally {
       setIsSubmitting(false)
     }
@@ -302,11 +304,10 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       
       await usersService.delete(selectedUser.id)
       
-      const successMessage = getSuccessMessage({ 
+      toast.success(getSuccessMessage({ 
         operation: 'delete_user', 
         entity: 'user' 
-      })
-      toast.success(successMessage)
+      }))
       
       setIsDeleteDialogOpen(false)
       setSelectedUser(null)
@@ -319,8 +320,7 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       if (shouldLogError(error)) {
         console.error('Failed to delete user:', error)
       }
-      const errorMessage = getErrorMessage(error, { operation: 'delete_user', entity: 'user' })
-      toast.error(errorMessage)
+      toast.error(getErrorMessage(error, { operation: 'delete_user', entity: 'user' }))
     } finally {
       setIsSubmitting(false)
     }
@@ -343,8 +343,7 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       if (shouldLogError(error)) {
         console.error('Failed to toggle user status:', error)
       }
-      const errorMessage = getErrorMessage(error, { operation: 'update_user', entity: 'user' })
-      toast.error(errorMessage)
+      toast.error(getErrorMessage(error, { operation: 'update_user', entity: 'user' }))
     }
   }
 

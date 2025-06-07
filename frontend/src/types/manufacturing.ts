@@ -44,7 +44,7 @@ export interface Machine {
   name: string
   code: string
   description?: string
-  is_active: number
+  is_active: boolean
 }
 
 export interface WorkCentre {
@@ -54,7 +54,7 @@ export interface WorkCentre {
   description?: string
   capacity: number
   display_order: number
-  is_active: number
+  is_active: boolean
   created_at: string
   updated_at: string
   current_jobs: number
@@ -108,7 +108,7 @@ export interface User {
   role: "admin" | "scheduler" | "viewer"
   first_name: string
   last_name: string
-  is_active: number
+  is_active: boolean
   created_at: string
   updated_at: string
 }

@@ -151,9 +151,10 @@ class OrdersController {
       if (updates.current_work_centre_id) {
         const workCentre = WorkCentre.findById(updates.current_work_centre_id);
         if (!workCentre) {
-          return res.status(400).json({
-            error: 'Invalid work centre ID',
-            code: 'INVALID_WORK_CENTRE'
+          return next({
+            status: 400,
+            code: 'INVALID_WORK_CENTRE',
+            message: 'Invalid work centre ID'
           });
         }
       }
@@ -187,7 +188,6 @@ class OrdersController {
         order
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
     }
   }
@@ -199,19 +199,12 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
-
-      // Debug: Log related records before deletion
-      const steps = ManufacturingStep.findByOrderId(orderId);
-      const auditLogs = AuditLog.findAll({ order_id: orderId });
-      const scannerEvents = require('../utils/database').getDatabase().prepare('SELECT * FROM scanner_events WHERE order_id = ?').all(orderId);
-      console.log('[DEBUG] Related steps:', steps);
-      console.log('[DEBUG] Related audit logs:', auditLogs);
-      console.log('[DEBUG] Related scanner events:', scannerEvents);
 
       // Business rule: Only hard delete if not_started, otherwise soft delete (set status to cancelled)
       if (order.status === 'not_started') {
@@ -248,7 +241,6 @@ class OrdersController {
         });
       }
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'DELETE_FAILED', message: error.message });
     }
   }
@@ -261,18 +253,20 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
       // Validate destination work centre
       const toWorkCentre = WorkCentre.findById(to_work_centre_id);
       if (!toWorkCentre) {
-        return res.status(400).json({
-          error: 'Invalid destination work centre',
-          code: 'INVALID_WORK_CENTRE'
+        return next({
+          status: 400,
+          code: 'INVALID_WORK_CENTRE',
+          message: 'Invalid destination work centre'
         });
       }
 
@@ -289,7 +283,6 @@ class OrdersController {
         order: updatedOrder
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 400, code: 'MOVE_FAILED', message: error.message });
     }
   }
@@ -302,9 +295,10 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -316,7 +310,6 @@ class OrdersController {
         lockExpiry: new Date(Date.now() + 30000).toISOString() // 30 seconds
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'LOCK_FAILED', message: error.message });
     }
   }
@@ -330,9 +323,10 @@ class OrdersController {
       const released = releaseDragLock(orderId, req.user.id);
       
       if (!released) {
-        return res.status(400).json({
-          error: 'No active lock found for this order',
-          code: 'NO_ACTIVE_LOCK'
+        return next({
+          status: 400,
+          code: 'NO_ACTIVE_LOCK',
+          message: 'No active lock found for this order'
         });
       }
 
@@ -341,7 +335,6 @@ class OrdersController {
         orderId: orderId
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'UNLOCK_FAILED', message: error.message });
     }
   }
@@ -482,9 +475,10 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -494,7 +488,6 @@ class OrdersController {
         steps
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
@@ -507,17 +500,19 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
       const step = ManufacturingStep.update(stepId, updates);
       if (!step) {
-        return res.status(404).json({
-          error: 'Step not found',
-          code: 'STEP_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'STEP_NOT_FOUND',
+          message: 'Step not found'
         });
       }
 
@@ -526,7 +521,6 @@ class OrdersController {
         step
       });
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 400, code: 'STEP_UPDATE_FAILED', message: error.message });
     }
   }
@@ -647,6 +641,294 @@ class OrdersController {
     } catch (error) {
       next({ status: 400, code: 'REORDER_FAILED', message: error.message });
     }
+  }
+
+  // External API Methods for ERP Integration
+
+  // POST /api/external/orders - Import orders from external system
+  async importExternalOrders(req, res, next) {
+    try {
+      const { orders, validate_only } = req.body;
+      const systemId = req.apiKey.system_id;
+
+      if (validate_only) {
+        // Only validate without saving
+        const validation = this.validateExternalOrders(orders);
+        return res.json({
+          message: 'Validation completed',
+          data: validation
+        });
+      }
+
+      const summary = {
+        total_orders: orders.length,
+        imported: 0,
+        updated: 0,
+        errors: []
+      };
+
+      for (const orderData of orders) {
+        try {
+          // Add system tracking
+          orderData.created_by = 1; // System user
+          orderData.metadata = { 
+            source: 'external', 
+            system_id: systemId,
+            imported_at: new Date().toISOString()
+          };
+
+          // Check if order exists
+          const existing = ManufacturingOrder.findAll({ order_number: orderData.order_number })[0];
+          
+          if (existing) {
+            // Update existing order
+            ManufacturingOrder.update(existing.id, orderData);
+            summary.updated++;
+          } else {
+            // Create new order
+            const newOrder = ManufacturingOrder.create(orderData);
+            
+            // Create manufacturing steps if provided
+            if (orderData.manufacturing_steps && orderData.manufacturing_steps.length > 0) {
+              // Map work centre codes to IDs
+              const stepsWithIds = orderData.manufacturing_steps.map(step => {
+                const workCentre = WorkCentre.findAll({ code: step.work_centre_code })[0];
+                return {
+                  ...step,
+                  work_centre_id: workCentre ? workCentre.id : null
+                };
+              });
+              ManufacturingStep.createStepsForOrder(newOrder.id, stepsWithIds);
+            }
+            
+            summary.imported++;
+          }
+        } catch (error) {
+          summary.errors.push({
+            order_number: orderData.order_number,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({
+        message: 'Orders processed successfully',
+        data: summary
+      });
+    } catch (error) {
+      next({ status: 500, code: 'EXTERNAL_IMPORT_FAILED', message: error.message });
+    }
+  }
+
+  // GET /api/external/orders/:orderNumber/status
+  async getOrderStatusForExternal(req, res, next) {
+    try {
+      const { orderNumber } = req.params;
+      
+      const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
+      if (!order) {
+        return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      }
+
+      const workCentre = order.current_work_centre_id ? 
+        WorkCentre.findById(order.current_work_centre_id) : null;
+
+      const progressPercentage = order.quantity_to_make > 0 ? 
+        (order.quantity_completed / order.quantity_to_make) * 100 : 0;
+
+      res.json({
+        message: 'Order status retrieved successfully',
+        data: {
+          order_number: order.order_number,
+          status: order.status,
+          current_operation: order.current_operation,
+          current_work_centre: workCentre ? workCentre.name : null,
+          quantity_completed: order.quantity_completed,
+          quantity_to_make: order.quantity_to_make,
+          progress_percentage: Math.round(progressPercentage * 100) / 100,
+          due_date: order.due_date,
+          last_updated: order.updated_at
+        }
+      });
+    } catch (error) {
+      next({ status: 500, code: 'STATUS_FETCH_FAILED', message: error.message });
+    }
+  }
+
+  // PUT /api/external/orders/:orderNumber/progress
+  async updateOrderProgressFromExternal(req, res, next) {
+    try {
+      const { orderNumber } = req.params;
+      const { quantity_completed, current_operation, current_work_centre_code, status, step_updates } = req.body;
+      
+      const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
+      if (!order) {
+        return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      }
+
+      const updateData = {};
+      
+      if (quantity_completed !== undefined) updateData.quantity_completed = quantity_completed;
+      if (current_operation !== undefined) updateData.current_operation = current_operation;
+      if (status !== undefined) updateData.status = status;
+      
+      if (current_work_centre_code) {
+        const workCentre = WorkCentre.findAll({ code: current_work_centre_code })[0];
+        if (workCentre) {
+          updateData.current_work_centre_id = workCentre.id;
+        }
+      }
+
+      // Update the order
+      const updatedOrder = ManufacturingOrder.update(order.id, updateData);
+
+      // Update manufacturing steps if provided
+      if (step_updates && Array.isArray(step_updates)) {
+        for (const stepUpdate of step_updates) {
+          const steps = ManufacturingStep.findByOrderId(order.id);
+          const step = steps.find(s => s.step_number === stepUpdate.step_number);
+          if (step) {
+            ManufacturingStep.update(step.id, stepUpdate);
+          }
+        }
+      }
+
+      const progressPercentage = updatedOrder.quantity_to_make > 0 ? 
+        (updatedOrder.quantity_completed / updatedOrder.quantity_to_make) * 100 : 0;
+
+      res.json({
+        message: 'Order progress updated successfully',
+        data: {
+          order_number: updatedOrder.order_number,
+          status: updatedOrder.status,
+          quantity_completed: updatedOrder.quantity_completed,
+          progress_percentage: Math.round(progressPercentage * 100) / 100
+        }
+      });
+    } catch (error) {
+      next({ status: 500, code: 'PROGRESS_UPDATE_FAILED', message: error.message });
+    }
+  }
+
+  // PUT /api/external/orders/:orderNumber/move
+  async moveOrderFromExternal(req, res, next) {
+    try {
+      const { orderNumber } = req.params;
+      const { to_work_centre_code, reason } = req.body;
+      
+      const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
+      if (!order) {
+        return next({
+          status: 404,
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found'
+        });
+      }
+
+      // Find work centre by code
+      const toWorkCentre = WorkCentre.findAll({ code: to_work_centre_code })[0];
+      if (!toWorkCentre) {
+        return next({
+          status: 404,
+          code: 'WORK_CENTRE_NOT_FOUND',
+          message: 'Work centre not found'
+        });
+      }
+
+      const fromWorkCentre = order.current_work_centre_id ? 
+        WorkCentre.findById(order.current_work_centre_id) : null;
+
+      // Move the order (using null user ID for external moves)
+      const updatedOrder = ManufacturingOrder.moveToWorkCentre(
+        order.id, 
+        toWorkCentre.id, 
+        null, // External system moves don't have a user
+        reason || 'External system move'
+      );
+
+      res.json({
+        message: 'Order moved successfully',
+        data: {
+          order_number: updatedOrder.order_number,
+          from_work_centre: fromWorkCentre ? fromWorkCentre.name : null,
+          to_work_centre: toWorkCentre.name,
+          moved_at: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      next({ status: 500, code: 'MOVE_FAILED', message: error.message });
+    }
+  }
+
+  // PUT /api/external/orders/:orderNumber/status
+  async updateOrderStatusFromExternal(req, res, next) {
+    try {
+      const { orderNumber } = req.params;
+      const { status, reason } = req.body;
+      
+      console.log(`[DEBUG] Updating order ${orderNumber} status to ${status}`);
+      
+      const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
+      if (!order) {
+        return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+      }
+
+      const oldStatus = order.status;
+      console.log(`[DEBUG] Current status: ${oldStatus}, New status: ${status}`);
+      
+      // Update the order status
+      console.log(`[DEBUG] About to call ManufacturingOrder.update for order ID ${order.id}`);
+      const updatedOrder = ManufacturingOrder.update(order.id, { status });
+      console.log(`[DEBUG] ManufacturingOrder.update completed successfully`);
+
+      res.json({
+        message: 'Order status updated successfully',
+        data: {
+          order_number: updatedOrder.order_number,
+          old_status: oldStatus,
+          new_status: status,
+          updated_at: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.log(`[DEBUG] Error in updateOrderStatusFromExternal:`, error);
+      next({ status: 500, code: 'STATUS_UPDATE_FAILED', message: error.message });
+    }
+  }
+
+  // Helper method to validate external orders
+  validateExternalOrders(orders) {
+    const results = [];
+    
+    for (const order of orders) {
+      const result = { order_number: order.order_number };
+      
+      try {
+        // Basic validation
+        if (!order.order_number || !order.stock_code || !order.description || !order.quantity_to_make) {
+          result.valid = false;
+          result.errors = ['Missing required fields: order_number, stock_code, description, quantity_to_make'];
+        } else if (order.quantity_to_make <= 0) {
+          result.valid = false;
+          result.errors = ['quantity_to_make must be greater than 0'];
+        } else {
+          result.valid = true;
+          result.errors = [];
+        }
+      } catch (error) {
+        result.valid = false;
+        result.errors = [error.message];
+      }
+      
+      results.push(result);
+    }
+    
+    return {
+      total_orders: orders.length,
+      valid_orders: results.filter(r => r.valid).length,
+      invalid_orders: results.filter(r => !r.valid).length,
+      details: results
+    };
   }
 }
 

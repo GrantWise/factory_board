@@ -44,6 +44,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    console.log('[API] Making request:', { url, method: options.method || 'GET' });
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -60,20 +61,42 @@ class ApiClient {
     };
 
     try {
+      console.log('[API] Sending request with config:', { 
+        url, 
+        method: config.method,
+        headers: config.headers,
+        body: config.body ? JSON.parse(config.body as string) : undefined
+      });
+      
       const response = await fetch(url, config);
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+      
+      console.log('[API] Received response:', { 
+        status: response.status,
+        ok: response.ok,
+        data
+      });
 
       if (!response.ok) {
+        const errorData = typeof data === 'string' ? { error: data } : data;
         throw {
-          error: data.error || 'API request failed',
-          code: data.code || 'API_ERROR',
+          error: errorData.error || 'API request failed',
+          code: errorData.code || 'API_ERROR',
           status: response.status,
-          details: data.details,
-        } as ApiError & { status: number };
+          details: errorData.details || errorData,
+          message: errorData.message
+        } as ApiError & { status: number; message?: string };
       }
 
       return data;
     } catch (error) {
+      console.error('[API] Request failed:', error);
       if (error instanceof TypeError) {
         // Network error
         throw {

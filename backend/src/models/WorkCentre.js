@@ -6,6 +6,30 @@ class WorkCentre {
     this.table = 'work_centres';
   }
 
+  // Convert SQLite 0/1 integers to proper booleans for API responses
+  convertBooleans(obj) {
+    if (!obj) return obj;
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.convertBooleans(item));
+    }
+    
+    const converted = { ...obj };
+    if (typeof converted.is_active === 'number') {
+      converted.is_active = Boolean(converted.is_active);
+    }
+    
+    // Convert machines array if present
+    if (converted.machines && Array.isArray(converted.machines)) {
+      converted.machines = converted.machines.map(machine => ({
+        ...machine,
+        is_active: typeof machine.is_active === 'number' ? Boolean(machine.is_active) : machine.is_active
+      }));
+    }
+    
+    return converted;
+  }
+
   // Create a new work centre
   create(workCentreData) {
     const stmt = this.db.prepare(`
@@ -19,10 +43,10 @@ class WorkCentre {
       workCentreData.description || null,
       workCentreData.capacity || 1,
       workCentreData.display_order || 0,
-      workCentreData.is_active !== undefined ? workCentreData.is_active : 1
+      workCentreData.is_active !== undefined ? (workCentreData.is_active ? 1 : 0) : 1
     );
     
-    return this.findById(result.lastInsertRowid);
+    return this.convertBooleans(this.findById(result.lastInsertRowid));
   }
 
   // Find work centre by ID with machines
@@ -41,7 +65,7 @@ class WorkCentre {
       ORDER BY name
     `).all(id);
     
-    return workCentre;
+    return this.convertBooleans(workCentre);
   }
 
   // Find work centre by code
@@ -60,7 +84,7 @@ class WorkCentre {
       ORDER BY name
     `).all(workCentre.id);
     
-    return workCentre;
+    return this.convertBooleans(workCentre);
   }
 
   // Get all work centres with machines and current job counts
@@ -88,7 +112,7 @@ class WorkCentre {
       `).all(workCentre.id);
     }
     
-    return workCentres;
+    return this.convertBooleans(workCentres);
   }
 
   // Update work centre
@@ -118,7 +142,7 @@ class WorkCentre {
     }
     if (workCentreData.is_active !== undefined) {
       fields.push('is_active = ?');
-      values.push(workCentreData.is_active);
+      values.push(workCentreData.is_active ? 1 : 0);
     }
     
     if (fields.length === 0) {
@@ -135,7 +159,7 @@ class WorkCentre {
     `);
     
     stmt.run(...values);
-    return this.findById(id);
+    return this.convertBooleans(this.findById(id));
   }
 
   // Delete work centre (soft delete)
@@ -190,10 +214,11 @@ class WorkCentre {
       machineData.code,
       workCentreId,
       machineData.description || null,
-      machineData.is_active !== undefined ? machineData.is_active : 1
+      machineData.is_active !== undefined ? (machineData.is_active ? 1 : 0) : 1
     );
     
-    return this.db.prepare('SELECT * FROM machines WHERE id = ?').get(result.lastInsertRowid);
+    const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(result.lastInsertRowid);
+    return this.convertBooleans(machine);
   }
 
   // Update machine
@@ -215,11 +240,12 @@ class WorkCentre {
     }
     if (machineData.is_active !== undefined) {
       fields.push('is_active = ?');
-      values.push(machineData.is_active);
+      values.push(machineData.is_active ? 1 : 0);
     }
     
     if (fields.length === 0) {
-      return this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
+      const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
+      return this.convertBooleans(machine);
     }
     
     fields.push('updated_at = CURRENT_TIMESTAMP');
@@ -232,7 +258,8 @@ class WorkCentre {
     `);
     
     stmt.run(...values);
-    return this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
+    const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
+    return this.convertBooleans(machine);
   }
 
   // Delete machine

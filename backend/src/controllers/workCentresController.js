@@ -86,17 +86,19 @@ class WorkCentresController {
 
       const existingWorkCentre = WorkCentre.findById(workCentreId);
       if (!existingWorkCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
       // Check if code conflicts with another work centre
       if (updates.code && WorkCentre.codeExists(updates.code, workCentreId)) {
-        return res.status(409).json({
-          error: 'Work centre code already exists',
-          code: 'DUPLICATE_CODE'
+        return next({
+          status: 409,
+          code: 'DUPLICATE_CODE',
+          message: 'Work centre code already exists'
         });
       }
 
@@ -320,6 +322,38 @@ class WorkCentresController {
       });
     } catch (error) {
       next({ status: 500, code: 'MACHINE_DELETE_FAILED', message: error.message });
+    }
+  }
+
+  // External API Methods
+
+  // GET /api/external/work-centres - Get work centres for external systems
+  async getWorkCentresForExternal(req, res, next) {
+    try {
+      const activeOnly = req.query.active_only !== 'false'; // Default to true
+      const workCentres = WorkCentre.findAll(!activeOnly);
+
+      // Filter to only active work centres if requested
+      const filteredWorkCentres = activeOnly ? 
+        workCentres.filter(wc => wc.is_active) : 
+        workCentres;
+
+      // Return simplified data for external systems
+      const externalData = filteredWorkCentres.map(wc => ({
+        id: wc.id,
+        name: wc.name,
+        code: wc.code,
+        description: wc.description,
+        capacity: wc.capacity,
+        is_active: wc.is_active
+      }));
+
+      res.json({
+        message: 'Work centres retrieved successfully',
+        data: externalData
+      });
+    } catch (error) {
+      next({ status: 500, code: 'EXTERNAL_FETCH_FAILED', message: error.message });
     }
   }
 }

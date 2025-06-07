@@ -106,9 +106,10 @@ class AuthController {
       });
     } catch (error) {
       if (error.message.includes('already exists')) {
-        return res.status(409).json({
-          error: error.message,
-          code: 'CONFLICT'
+        return next({
+          status: 409,
+          code: 'CONFLICT',
+          message: error.message
         });
       }
 
@@ -160,16 +161,18 @@ class AuthController {
       const userData = req.body;
       
       if (!userData.username || !userData.email || !userData.password || !userData.role) {
-        return res.status(400).json({
-          error: 'Username, email, password, and role are required',
-          code: 'MISSING_FIELDS'
+        return next({
+          status: 400,
+          code: 'MISSING_FIELDS',
+          message: 'Username, email, password, and role are required'
         });
       }
 
       if (userData.password.length < 6) {
-        return res.status(400).json({
-          error: 'Password must be at least 6 characters long',
-          code: 'PASSWORD_TOO_SHORT'
+        return next({
+          status: 400,
+          code: 'PASSWORD_TOO_SHORT',
+          message: 'Password must be at least 6 characters long'
         });
       }
 
@@ -181,9 +184,10 @@ class AuthController {
       });
     } catch (error) {
       if (error.message.includes('already exists')) {
-        return res.status(409).json({
-          error: error.message,
-          code: 'CONFLICT'
+        return next({
+          status: 409,
+          code: 'CONFLICT',
+          message: error.message
         });
       }
 

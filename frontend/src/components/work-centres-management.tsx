@@ -67,6 +67,7 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
     name: "",
     capacity: 5,
     machines: "",
+    description: "",
     is_active: true,
   })
 
@@ -129,24 +130,60 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
 
       const workCentreData = {
         name: trimmedName,
-        code: `WC-${trimmedName.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        code: `WC-${trimmedName.toUpperCase().slice(0, 8).replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`,
         capacity: newCentre.capacity,
         display_order: centres.length + 1,
-      }
+        description: newCentre.description.trim() || undefined,
+        is_active: true // Default to active for new work centres
+      };
 
-      await workCentresService.create(workCentreData)
+      console.log('[WorkCentre] Creating with data:', workCentreData);
+      
+      const response = await workCentresService.create(workCentreData);
+      console.log('[WorkCentre] Create response:', response);
       
       // Add machines if provided
-      // Note: This would need additional API calls for each machine
-      // For now, we'll handle this in a future enhancement
+      if (newCentre.machines.trim()) {
+        const machines = newCentre.machines.split(',').map(m => m.trim()).filter(m => m);
+        for (const machineName of machines) {
+          const machineCode = `MACH-${machineName.toUpperCase().slice(0, 8).replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
+          await workCentresService.addMachine(response.work_centre.id, {
+            name: machineName,
+            code: machineCode,
+            description: `Machine for ${trimmedName}`
+          });
+        }
+      }
       
       onWorkCentreUpdate?.() // Trigger refresh
       setIsAddDialogOpen(false)
-      setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
+      setNewCentre({ name: "", capacity: 5, machines: "", description: "", is_active: true })
       toast.success('Work centre created successfully')
     } catch (error: unknown) {
-      const err = error as { error?: string }
-      toast.error(err.error || 'Failed to create work centre')
+      console.error('[WorkCentre] Create error:', error);
+      const err = error as { error?: string; message?: string; details?: any; status?: number };
+      
+      // Try to get a meaningful error message
+      let errorMessage = err.error || err.message || 'Failed to create work centre';
+      
+      // If we have details, try to extract more specific error information
+      if (err.details) {
+        if (typeof err.details === 'string') {
+          errorMessage = err.details;
+        } else if (err.details.error) {
+          errorMessage = err.details.error;
+        } else if (err.details.message) {
+          errorMessage = err.details.message;
+        } else if (typeof err.details === 'object') {
+          // Handle validation errors
+          const validationErrors = Object.entries(err.details)
+            .map(([field, message]) => `${field}: ${message}`)
+            .join('\n');
+          errorMessage = `Validation failed:\n${validationErrors}`;
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   }
 
@@ -160,7 +197,8 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
       name: centre.name,
       capacity: centre.capacity,
       machines: centre.machines.map(m => m.name).join(", "),
-      is_active: Boolean(centre.is_active),
+      description: centre.description || "",
+      is_active: centre.is_active,
     })
   }
 
@@ -226,18 +264,66 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
       const updates = {
         name: trimmedName,
         capacity: newCentre.capacity,
-        is_active: newCentre.is_active ? 1 : 0,
-      }
+        is_active: newCentre.is_active,
+        description: newCentre.description.trim() || undefined
+      };
 
-      await workCentresService.update(editingCentre.id, updates)
+      await workCentresService.update(editingCentre.id, updates);
+
+      // Handle machines separately
+      if (editingCentre) {
+        // Get current machines
+        const currentMachines = editingCentre.machines || [];
+        const newMachines = newCentre.machines.trim() ? newCentre.machines.split(',').map(m => m.trim()).filter(m => m) : [];
+        
+        // Delete machines that are no longer in the list
+        for (const machine of currentMachines) {
+          if (!newMachines.includes(machine.name)) {
+            await workCentresService.deleteMachine(editingCentre.id, machine.id);
+          }
+        }
+        
+        // Add new machines
+        for (const machineName of newMachines) {
+          if (!currentMachines.some(m => m.name === machineName)) {
+            const machineCode = `MACH-${machineName.toUpperCase().slice(0, 8).replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
+            await workCentresService.addMachine(editingCentre.id, {
+              name: machineName,
+              code: machineCode,
+              description: `Machine for ${trimmedName}`
+            });
+          }
+        }
+      }
 
       onWorkCentreUpdate?.() // Trigger refresh from API
       setEditingCentre(null)
-      setNewCentre({ name: "", capacity: 5, machines: "", is_active: true })
+      setNewCentre({ name: "", capacity: 5, machines: "", description: "", is_active: true })
       toast.success('Work centre updated successfully')
     } catch (error: unknown) {
-      const err = error as { error?: string }
-      toast.error(err.error || 'Failed to update work centre')
+      const err = error as { error?: string; message?: string; details?: any; status?: number };
+      
+      // Try to get a meaningful error message
+      let errorMessage = err.error || err.message || 'Failed to update work centre';
+      
+      // If we have details, try to extract more specific error information
+      if (err.details) {
+        if (typeof err.details === 'string') {
+          errorMessage = err.details;
+        } else if (err.details.error) {
+          errorMessage = err.details.error;
+        } else if (err.details.message) {
+          errorMessage = err.details.message;
+        } else if (typeof err.details === 'object') {
+          // Handle validation errors
+          const validationErrors = Object.entries(err.details)
+            .map(([field, message]) => `${field}: ${message}`)
+            .join('\n');
+          errorMessage = `Validation failed:\n${validationErrors}`;
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   }
 
@@ -277,7 +363,7 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
       const newIsActive = !centre.is_active
       
       const updates = {
-        is_active: newIsActive ? 1 : 0,
+        is_active: newIsActive,
       }
 
       await workCentresService.update(centreId, updates)
@@ -373,6 +459,15 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
                   type="number"
                   value={newCentre.capacity}
                   onChange={(e) => setNewCentre({ ...newCentre, capacity: Number.parseInt(e.target.value) || 5 })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={newCentre.description}
+                  onChange={(e) => setNewCentre({ ...newCentre, description: e.target.value })}
+                  placeholder="Enter work centre description"
                 />
               </div>
               <div>
@@ -498,6 +593,15 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
                 type="number"
                 value={newCentre.capacity}
                 onChange={(e) => setNewCentre({ ...newCentre, capacity: Number.parseInt(e.target.value) || 5 })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={newCentre.description}
+                onChange={(e) => setNewCentre({ ...newCentre, description: e.target.value })}
+                placeholder="Enter work centre description"
               />
             </div>
             <div>

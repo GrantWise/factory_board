@@ -1,4 +1,5 @@
 const { getDatabase } = require('../utils/database');
+const { validateStatus } = require('../utils/orderStatus');
 
 class ManufacturingOrder {
   constructor() {
@@ -208,8 +209,8 @@ class ManufacturingOrder {
     return this.findById(id);
   }
 
-  // Move order to different work centre
-  moveToWorkCentre(orderId, toWorkCentreId, userId, reason = 'user_decision') {
+  // Move order to different work centre with full audit logging
+  moveToWorkCentre(orderId, toWorkCentreId, userId, reason = 'user_decision', newPosition = null) {
     const order = this.findById(orderId);
     if (!order) {
       throw new Error('Order not found');
@@ -217,9 +218,31 @@ class ManufacturingOrder {
     
     const fromWorkCentreId = order.current_work_centre_id;
     
-    // Update order
+    // If no position specified, place at end of queue
+    if (newPosition === null) {
+      const maxPosition = this.db.prepare(`
+        SELECT COALESCE(MAX(work_centre_position), 0) as max_pos
+        FROM ${this.table}
+        WHERE current_work_centre_id = ?
+      `).get(toWorkCentreId);
+      newPosition = (maxPosition?.max_pos || 0) + 1;
+    } else {
+      // Ensure position is a positive integer
+      newPosition = Math.max(1, Math.floor(newPosition));
+      
+      // Shift existing positions to make room
+      this.db.prepare(`
+        UPDATE ${this.table}
+        SET work_centre_position = work_centre_position + 1
+        WHERE current_work_centre_id = ? 
+        AND work_centre_position >= ?
+      `).run(toWorkCentreId, newPosition);
+    }
+    
+    // Update order with new work centre and position
     const updateResult = this.update(orderId, {
-      current_work_centre_id: toWorkCentreId
+      current_work_centre_id: toWorkCentreId,
+      work_centre_position: newPosition
     });
     
     // Log the move in audit trail
@@ -234,12 +257,12 @@ class ManufacturingOrder {
       fromWorkCentreId,
       toWorkCentreId,
       userId,
-      JSON.stringify({ reason, order_number: order.order_number }),
+      JSON.stringify({ reason, order_number: order.order_number, new_position: newPosition }),
       this.getWorkCentreQueueDepth(fromWorkCentreId),
       this.getWorkCentreQueueDepth(toWorkCentreId)
     );
     
-    return updateResult;
+    return this.findById(orderId);
   }
 
   // Get queue depth for a work centre
@@ -328,7 +351,14 @@ class ManufacturingOrder {
         throw new Error('Some orders do not belong to the specified work centre');
       }
 
-      // Update positions
+      // Validate positions are positive integers
+      for (const { position } of orderPositions) {
+        if (!Number.isInteger(position) || position < 1) {
+          throw new Error('Positions must be positive integers');
+        }
+      }
+
+      // Update positions in a single transaction
       const updateStmt = this.db.prepare(`
         UPDATE ${this.table} 
         SET work_centre_position = ?, updated_at = CURRENT_TIMESTAMP
@@ -337,11 +367,12 @@ class ManufacturingOrder {
 
       let totalChanges = 0;
       for (const { order_id, position } of orderPositions) {
-        console.log(`🔄 Updating order ${order_id} to position ${position} in work centre ${workCentreId}`);
         const result = updateStmt.run(position, order_id, workCentreId);
-        console.log(`✅ Update result for order ${order_id}:`, result);
         totalChanges += result.changes;
       }
+
+      // Compact positions to remove gaps
+      this.compactWorkCentrePositions(workCentreId);
 
       return { changes: totalChanges };
     });
@@ -349,15 +380,57 @@ class ManufacturingOrder {
     return transaction();
   }
 
-  // Update position when moving between work centres
-  moveToWorkCentre(orderId, newWorkCentreId, newPosition = 0) {
-    const stmt = this.db.prepare(`
-      UPDATE ${this.table} 
-      SET current_work_centre_id = ?, work_centre_position = ?, updated_at = CURRENT_TIMESTAMP
+  // Compact positions to remove gaps
+  compactWorkCentrePositions(workCentreId) {
+    const orders = this.db.prepare(`
+      SELECT id, work_centre_position
+      FROM ${this.table}
+      WHERE current_work_centre_id = ?
+      ORDER BY work_centre_position
+    `).all(workCentreId);
+
+    // Update positions sequentially
+    const updateStmt = this.db.prepare(`
+      UPDATE ${this.table}
+      SET work_centre_position = ?
       WHERE id = ?
     `);
+
+    orders.forEach((order, index) => {
+      const newPosition = index + 1;
+      if (order.work_centre_position !== newPosition) {
+        updateStmt.run(newPosition, order.id);
+      }
+    });
+  }
+
+  // Update an existing order
+  static update(id, updates) {
+    const db = this.getDatabase();
     
-    return stmt.run(newWorkCentreId, newPosition, orderId);
+    // Validate status if being updated
+    if (updates.status) {
+      validateStatus(updates.status);
+    }
+
+    // Get existing order
+    const existingOrder = this.findById(id);
+    if (!existingOrder) {
+      throw new Error('Order not found');
+    }
+
+    // Update the order
+    const stmt = db.prepare(`
+      UPDATE manufacturing_orders 
+      SET ${Object.keys(updates).map(key => `${key} = ?`).join(', ')},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    const params = [...Object.values(updates), id];
+    stmt.run(params);
+
+    return this.findById(id);
   }
 }
 

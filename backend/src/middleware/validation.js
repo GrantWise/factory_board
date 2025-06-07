@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { VALID_STATUSES } = require('../utils/orderStatus');
 
 /**
  * Validation Middleware
@@ -22,6 +23,71 @@ const Joi = require('joi');
  * Note: Validation errors are handled here and do not propagate to the centralized error handler.
  * Only non-validation errors (e.g., database, logic) are passed to next(err).
  */
+
+// Define step statuses separately as they are different from order statuses
+const STEP_STATUSES = ['pending', 'in_progress', 'complete', 'skipped'];
+
+// Validation schema for order updates
+const orderUpdateSchema = Joi.object({
+  order_number: Joi.string().max(50).optional(),
+  stock_code: Joi.string().max(50).optional(),
+  description: Joi.string().max(255).optional(),
+  quantity_to_make: Joi.number().integer().min(0).optional(),
+  quantity_completed: Joi.number().integer().min(0).optional(),
+  current_operation: Joi.string().max(100).optional(),
+  current_work_centre_id: Joi.number().integer().min(1).optional(),
+  status: Joi.string().valid(...VALID_STATUSES).optional(),
+  priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
+  due_date: Joi.date().iso().optional(),
+  start_date: Joi.date().iso().optional()
+});
+
+// Validation schema for order creation
+const orderCreateSchema = orderUpdateSchema.keys({
+  order_number: Joi.string().max(50).required(),
+  stock_code: Joi.string().max(50).required(),
+  description: Joi.string().max(255).required(),
+  quantity_to_make: Joi.number().integer().min(0).required(),
+  status: Joi.string().valid(...VALID_STATUSES).default('not_started')
+});
+
+// Validation schema for manufacturing steps
+const stepSchema = Joi.object({
+  step_number: Joi.number().integer().min(1).required(),
+  operation_name: Joi.string().max(100).required(),
+  work_centre_id: Joi.number().integer().min(1).required(),
+  planned_duration_minutes: Joi.number().integer().min(0).optional(),
+  status: Joi.string().valid(...STEP_STATUSES).default('pending')
+});
+
+// Validation schema for order import
+const orderImportSchema = Joi.object({
+  order_number: Joi.string().max(50).required(),
+  stock_code: Joi.string().max(50).required(),
+  description: Joi.string().max(255).required(),
+  quantity_to_make: Joi.number().integer().min(0).required(),
+  quantity_completed: Joi.number().integer().min(0).optional(),
+  current_operation: Joi.string().max(100).optional(),
+  current_work_centre_id: Joi.number().integer().min(1).optional(),
+  status: Joi.string().valid(...VALID_STATUSES).default('not_started'),
+  priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
+  due_date: Joi.date().iso().optional(),
+  start_date: Joi.date().iso().optional(),
+  manufacturing_steps: Joi.array().items(stepSchema).optional()
+});
+
+// Validation schema for step updates
+const stepUpdateSchema = Joi.object({
+  status: Joi.string().valid(...STEP_STATUSES).optional(),
+  quantity_completed: Joi.number().integer().min(0).optional(),
+  actual_duration_minutes: Joi.number().integer().min(0).optional()
+});
+
+// Validation schema for order status updates
+const orderStatusSchema = Joi.object({
+  status: Joi.string().valid(...VALID_STATUSES).required(),
+  reason: Joi.string().max(100).optional()
+});
 
 // Common validation schemas
 const schemas = {
@@ -94,59 +160,38 @@ const schemas = {
   
   // Manufacturing order validation
   order: {
-    create: Joi.object({
-      order_number: Joi.string().max(50).required(),
-      stock_code: Joi.string().max(50).required(),
-      description: Joi.string().required(),
-      quantity_to_make: Joi.number().integer().min(1).required(),
-      quantity_completed: Joi.number().integer().min(0).default(0),
-      current_operation: Joi.string().max(100).optional(),
-      current_work_centre_id: Joi.number().integer().optional(),
-      status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').default('not_started'),
-      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
-      due_date: Joi.string().isoDate().optional(),
-      start_date: Joi.string().isoDate().optional(),
-      manufacturing_steps: Joi.array().items(
-        Joi.object({
-          step_number: Joi.number().integer().min(1).required(),
-          operation_name: Joi.string().max(100).required(),
-          work_centre_id: Joi.number().integer().required(),
-          planned_duration_minutes: Joi.number().integer().min(0).optional()
-        })
-      ).optional()
-    }),
-    update: Joi.object({
-      order_number: Joi.string().max(50).optional(),
-      stock_code: Joi.string().max(50).optional(),
-      description: Joi.string().optional(),
-      quantity_to_make: Joi.number().integer().min(1).optional(),
-      quantity_completed: Joi.number().integer().min(0).optional(),
-      current_operation: Joi.string().max(100).optional(),
-      current_work_centre_id: Joi.number().integer().optional(),
-      status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').optional(),
-      priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
-      due_date: Joi.string().isoDate().optional(),
-      start_date: Joi.string().isoDate().optional(),
-      completion_date: Joi.string().isoDate().optional()
-    }),
+    create: orderCreateSchema,
+    update: orderUpdateSchema,
     move: Joi.object({
       to_work_centre_id: Joi.number().integer().required(),
       reason: Joi.string().max(100).default('user_decision')
+    }),
+    bulkImport: Joi.object({
+      source_system: Joi.string().max(50).required(),
+      timestamp: Joi.string().isoDate().required(),
+      orders: Joi.array().items(
+        Joi.object({
+          order_number: Joi.string().max(50).required(),
+          stock_code: Joi.string().max(50).required(),
+          description: Joi.string().required(),
+          quantity_to_make: Joi.number().integer().min(1).required(),
+          quantity_completed: Joi.number().integer().min(0).default(0),
+          current_operation: Joi.string().max(100).optional(),
+          current_work_centre_id: Joi.number().integer().optional(),
+          status: Joi.string().valid('not_started', 'in_progress', 'complete', 'overdue', 'on_hold', 'cancelled').default('not_started'),
+          priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
+          due_date: Joi.string().isoDate().optional(),
+          start_date: Joi.string().isoDate().optional(),
+          external_reference: Joi.string().max(100).optional(),
+          metadata: Joi.object().optional()
+        })
+      ).min(1).required()
     })
   },
   
   // Manufacturing step validation
   step: {
-    update: Joi.object({
-      operation_name: Joi.string().max(100).optional(),
-      work_centre_id: Joi.number().integer().optional(),
-      status: Joi.string().valid('pending', 'in_progress', 'complete', 'skipped').optional(),
-      planned_duration_minutes: Joi.number().integer().min(0).optional(),
-      actual_duration_minutes: Joi.number().integer().min(0).optional(),
-      quantity_completed: Joi.number().integer().min(0).optional(),
-      started_at: Joi.string().isoDate().optional(),
-      completed_at: Joi.string().isoDate().optional()
-    }),
+    update: stepUpdateSchema,
     complete: Joi.object({
       quantity_completed: Joi.number().integer().min(0).required()
     })

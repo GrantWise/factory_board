@@ -40,6 +40,55 @@ import type { DashboardMetrics } from "@/types/manufacturing"
 import { Loader2, Sun, Moon, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
+import { ApiKeysManagement } from "@/components/api-keys-management"
+import { ApiKeysAnalytics } from "@/components/api-keys-analytics"
+import { LayoutDashboard, Kanban, Factory, Package, BarChart3, Users, Key, Settings } from "lucide-react"
+import type { ManufacturingOrder } from "@/types/manufacturing"
+
+const navigationItems = [
+  {
+    title: "Dashboard",
+    page: "dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Planning Board",
+    page: "planning",
+    icon: Kanban,
+  },
+  {
+    title: "Work Centres",
+    page: "workcentres",
+    icon: Factory,
+  },
+  {
+    title: "Orders Management",
+    page: "orders",
+    icon: Package,
+  },
+  {
+    title: "Analytics",
+    page: "analytics",
+    icon: BarChart3,
+  },
+  {
+    title: "User Management",
+    page: "users",
+    icon: Users,
+    requiresRole: "admin",
+  },
+  {
+    title: "API Keys",
+    page: "api-keys",
+    icon: Key,
+    requiresRole: "admin",
+  },
+  {
+    title: "Settings",
+    page: "settings",
+    icon: Settings,
+  },
+]
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState("dashboard")
@@ -182,6 +231,64 @@ export default function Dashboard() {
     }
   }
 
+  /**
+   * Handles updating an order (e.g., status change) and refreshes orders
+   */
+  const handleOrderUpdate = async (orderId: number, update: Partial<ManufacturingOrder>) => {
+    console.log('[Dashboard] handleOrderUpdate called:', { orderId, update });
+    try {
+      console.log('[Dashboard] Calling ordersService.update...');
+      await ordersService.update(orderId, update)
+      console.log('[Dashboard] ordersService.update completed successfully');
+      console.log('[Dashboard] Refreshing orders...');
+      await refetchOrders()
+      console.log('[Dashboard] Orders refreshed successfully');
+      toast.success('Order updated successfully')
+    } catch (error: any) {
+      console.error('[Dashboard] Error updating order:', error);
+      let errorMessage = 'Failed to update order';
+      if (error.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage = 'Permission denied. You do not have access to update orders.';
+      } else if (error.status === 0) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.error) {
+        errorMessage = error.error;
+      }
+      toast.error(errorMessage)
+      throw error
+    }
+  }
+
+  /**
+   * Handles reordering orders within a work centre
+   */
+  const handleOrderReorder = async (workCentreId: number, orderPositions: Array<{ order_id: number; position: number }>) => {
+    try {
+      console.log('[Dashboard] Reordering orders:', { workCentreId, orderPositions });
+      await ordersService.reorder(workCentreId, orderPositions);
+      console.log('[Dashboard] Orders reordered successfully');
+      await refetchOrders();
+      console.log('[Dashboard] Orders list refreshed');
+      toast.success('Orders reordered successfully');
+    } catch (error: any) {
+      console.error('[Dashboard] Error reordering orders:', error);
+      let errorMessage = 'Failed to reorder orders';
+      if (error.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage = 'Permission denied. You do not have access to reorder orders.';
+      } else if (error.status === 0) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.error) {
+        errorMessage = error.error;
+      }
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   const getPageTitle = () => {
     switch (currentPage) {
       case "dashboard":
@@ -196,6 +303,8 @@ export default function Dashboard() {
         return "Analytics"
       case "users":
         return "User Management"
+      case "api-keys":
+        return "API Keys"
       case "settings":
         return "Settings"
       default:
@@ -225,17 +334,21 @@ export default function Dashboard() {
       case "dashboard":
         return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
       case "planning":
-        return <PlanningBoard orders={orders} workCentres={workCentres} onOrderMove={handleOrderMove} onNavigate={setCurrentPage} onWorkCentreUpdate={refetchWorkCentres} onOrderUpdate={refetchOrders} />
+        return <PlanningBoard 
+          orders={orders} 
+          workCentres={workCentres} 
+          onOrderMove={handleOrderMove} 
+          onNavigate={setCurrentPage} 
+          onWorkCentreUpdate={refetchWorkCentres} 
+          onOrderUpdate={handleOrderUpdate}
+          onOrderReorder={handleOrderReorder}
+        />
       case "workcentres":
         return <WorkCentresManagement workCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
         return <OrdersTable orders={orders} workCentres={workCentres} />
       case "analytics":
-        return (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-gray-500">Analytics page coming soon...</p>
-          </div>
-        )
+        return <ApiKeysAnalytics />
       case "users":
         if (!hasRole("admin")) {
           return (
@@ -245,6 +358,15 @@ export default function Dashboard() {
           )
         }
         return <UsersManagement />
+      case "api-keys":
+        if (!hasRole("admin")) {
+          return (
+            <div className="flex items-center justify-center h-64">
+              <p className="text-gray-500">Access denied. Admin role required.</p>
+            </div>
+          )
+        }
+        return <ApiKeysManagement />
       case "settings":
         return (
           <div className="flex items-center justify-center h-64">

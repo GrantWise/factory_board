@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const { validate, schemas, validateId } = require('../middleware/validation');
 const { checkDragLock, createLockForRequest } = require('../middleware/dragLocks');
+const { validateApiKey } = require('../middleware/apiKeyAuth');
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -114,6 +115,13 @@ router.post('/:id/steps/:stepId/complete',
   requirePermission('orders:write'),
   validate(schemas.step.complete),
   OrdersController.completeOrderStep
+);
+
+// POST /api/orders/external/import - Import orders from external system
+router.post('/external/import', 
+  validateApiKey,
+  validate(schemas.order.bulkImport),
+  OrdersController.importExternalOrders
 );
 
 module.exports = router;

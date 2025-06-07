@@ -91,18 +91,34 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Swagger documentation setup
+const { specs, swaggerUi, swaggerOptions } = require('./config/swagger');
+
+// Serve Swagger UI
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(specs, swaggerOptions));
+
+// API documentation endpoint (JSON)
+app.get('/api/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(specs);
+});
+
 // API Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const workCentreRoutes = require('./routes/workCentres');
 const orderRoutes = require('./routes/orders');
 const analyticsRoutes = require('./routes/analytics');
+const apiKeyRoutes = require('./routes/apiKeys');
+const externalRoutes = require('./routes/external');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/work-centres', workCentreRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin/api-keys', apiKeyRoutes);
+app.use('/api/external', externalRoutes);
 
 // Planning board endpoint (aggregated data)
 app.get('/api/planning-board', require('./controllers/planningController').getPlanningBoardData);
