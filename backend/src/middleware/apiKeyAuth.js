@@ -8,12 +8,12 @@ const logger = createLogger('apiKeyAuth');
 /**
  * API Key Authentication Middleware
  * ================================
- * 
+ *
  * Validates API keys for external system integration.
  * API keys should be provided in the X-API-Key header.
- * 
+ *
  * Example usage:
- * router.post('/external/import', 
+ * router.post('/external/import',
  *   validateApiKey,
  *   validate(schemas.order.bulkImport),
  *   OrdersController.importExternalOrders
@@ -50,7 +50,7 @@ const checkIpWhitelist = (ip, whitelist) => {
       const [subnet, bits] = allowedIp.split('/');
       const ipNum = ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0);
       const subnetNum = subnet.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0);
-      const mask = ~((1 << (32 - bits)) - 1);
+      const mask = ~((1 << 32 - bits) - 1);
       return (ipNum & mask) === (subnetNum & mask);
     }
     return ip === allowedIp;
@@ -62,7 +62,7 @@ const validateApiKey = async (req, res, next) => {
   try {
     const apiKey = req.headers['x-api-key'];
     const systemId = req.headers['x-system-id'];
-    
+
     if (!apiKey || !systemId) {
       logger.warn('Missing API key or system ID', {
         ip: req.ip,
@@ -97,7 +97,7 @@ const validateApiKey = async (req, res, next) => {
 
     // Check IP whitelist
     if (!checkIpWhitelist(req.ip, keyDetails.ip_whitelist)) {
-      logger.warn('IP not in whitelist', { 
+      logger.warn('IP not in whitelist', {
         ip: req.ip,
         systemId
       });
@@ -135,7 +135,7 @@ const validateApiKey = async (req, res, next) => {
 // Audit logging middleware
 const logApiRequest = (req, res, next) => {
   const startTime = Date.now();
-  
+
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     logger.info('API request completed', {
@@ -155,4 +155,4 @@ module.exports = {
   validateApiKey,
   logApiRequest,
   apiKeySchema
-}; 
+};

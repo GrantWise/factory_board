@@ -9,16 +9,16 @@ class WorkCentre {
   // Convert SQLite 0/1 integers to proper booleans for API responses
   convertBooleans(obj) {
     if (!obj) return obj;
-    
+
     if (Array.isArray(obj)) {
       return obj.map(item => this.convertBooleans(item));
     }
-    
+
     const converted = { ...obj };
     if (typeof converted.is_active === 'number') {
       converted.is_active = Boolean(converted.is_active);
     }
-    
+
     // Convert machines array if present
     if (converted.machines && Array.isArray(converted.machines)) {
       converted.machines = converted.machines.map(machine => ({
@@ -26,7 +26,7 @@ class WorkCentre {
         is_active: typeof machine.is_active === 'number' ? Boolean(machine.is_active) : machine.is_active
       }));
     }
-    
+
     return converted;
   }
 
@@ -36,16 +36,16 @@ class WorkCentre {
       INSERT INTO ${this.table} (name, code, description, capacity, display_order, is_active)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(
       workCentreData.name,
       workCentreData.code,
       workCentreData.description || null,
       workCentreData.capacity || 1,
       workCentreData.display_order || 0,
-      workCentreData.is_active !== undefined ? (workCentreData.is_active ? 1 : 0) : 1
+      workCentreData.is_active !== undefined ? workCentreData.is_active ? 1 : 0 : 1
     );
-    
+
     return this.convertBooleans(this.findById(result.lastInsertRowid));
   }
 
@@ -54,9 +54,9 @@ class WorkCentre {
     const workCentre = this.db.prepare(`
       SELECT * FROM ${this.table} WHERE id = ?
     `).get(id);
-    
+
     if (!workCentre) return null;
-    
+
     // Get associated machines
     workCentre.machines = this.db.prepare(`
       SELECT id, name, code, description, is_active
@@ -64,7 +64,7 @@ class WorkCentre {
       WHERE work_centre_id = ? AND is_active = 1
       ORDER BY name
     `).all(id);
-    
+
     return this.convertBooleans(workCentre);
   }
 
@@ -73,9 +73,9 @@ class WorkCentre {
     const workCentre = this.db.prepare(`
       SELECT * FROM ${this.table} WHERE code = ?
     `).get(code);
-    
+
     if (!workCentre) return null;
-    
+
     // Get associated machines
     workCentre.machines = this.db.prepare(`
       SELECT id, name, code, description, is_active
@@ -83,14 +83,14 @@ class WorkCentre {
       WHERE work_centre_id = ? AND is_active = 1
       ORDER BY name
     `).all(workCentre.id);
-    
+
     return this.convertBooleans(workCentre);
   }
 
   // Get all work centres with machines and current job counts
   findAll(includeInactive = false) {
     const whereClause = includeInactive ? '' : 'WHERE wc.is_active = 1';
-    
+
     const workCentres = this.db.prepare(`
       SELECT wc.*,
              COUNT(mo.id) as current_jobs
@@ -101,7 +101,7 @@ class WorkCentre {
       GROUP BY wc.id
       ORDER BY wc.display_order, wc.name
     `).all();
-    
+
     // Get machines for each work centre
     for (const workCentre of workCentres) {
       workCentre.machines = this.db.prepare(`
@@ -111,7 +111,7 @@ class WorkCentre {
         ORDER BY name
       `).all(workCentre.id);
     }
-    
+
     return this.convertBooleans(workCentres);
   }
 
@@ -119,7 +119,7 @@ class WorkCentre {
   update(id, workCentreData) {
     const fields = [];
     const values = [];
-    
+
     if (workCentreData.name !== undefined) {
       fields.push('name = ?');
       values.push(workCentreData.name);
@@ -144,20 +144,20 @@ class WorkCentre {
       fields.push('is_active = ?');
       values.push(workCentreData.is_active ? 1 : 0);
     }
-    
+
     if (fields.length === 0) {
       return this.findById(id);
     }
-    
+
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
-    
+
     const stmt = this.db.prepare(`
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     return this.convertBooleans(this.findById(id));
   }
@@ -169,7 +169,7 @@ class WorkCentre {
       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    
+
     return stmt.run(id);
   }
 
@@ -180,13 +180,13 @@ class WorkCentre {
       SET display_order = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    
+
     const transaction = this.db.transaction(() => {
       for (const update of orderUpdates) {
         stmt.run(update.display_order, update.id);
       }
     });
-    
+
     transaction();
   }
 
@@ -208,15 +208,15 @@ class WorkCentre {
       INSERT INTO machines (name, code, work_centre_id, description, is_active)
       VALUES (?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(
       machineData.name,
       machineData.code,
       workCentreId,
       machineData.description || null,
-      machineData.is_active !== undefined ? (machineData.is_active ? 1 : 0) : 1
+      machineData.is_active !== undefined ? machineData.is_active ? 1 : 0 : 1
     );
-    
+
     const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(result.lastInsertRowid);
     return this.convertBooleans(machine);
   }
@@ -225,7 +225,7 @@ class WorkCentre {
   updateMachine(machineId, machineData) {
     const fields = [];
     const values = [];
-    
+
     if (machineData.name !== undefined) {
       fields.push('name = ?');
       values.push(machineData.name);
@@ -242,21 +242,21 @@ class WorkCentre {
       fields.push('is_active = ?');
       values.push(machineData.is_active ? 1 : 0);
     }
-    
+
     if (fields.length === 0) {
       const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
       return this.convertBooleans(machine);
     }
-    
+
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(machineId);
-    
+
     const stmt = this.db.prepare(`
       UPDATE machines
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
     return this.convertBooleans(machine);
@@ -269,7 +269,7 @@ class WorkCentre {
       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    
+
     return stmt.run(machineId);
   }
 }

@@ -115,7 +115,7 @@ const schemas = {
       password: Joi.string().required()
     })
   },
-  
+
   // Work centre validation
   workCentre: {
     create: Joi.object({
@@ -141,7 +141,7 @@ const schemas = {
       })
     ).min(1).required()
   },
-  
+
   // Machine validation
   machine: {
     create: Joi.object({
@@ -157,7 +157,7 @@ const schemas = {
       is_active: Joi.boolean().optional()
     })
   },
-  
+
   // Manufacturing order validation
   order: {
     create: orderCreateSchema,
@@ -188,7 +188,7 @@ const schemas = {
       ).min(1).required()
     })
   },
-  
+
   // Manufacturing step validation
   step: {
     update: stepUpdateSchema,
@@ -196,7 +196,7 @@ const schemas = {
       quantity_completed: Joi.number().integer().min(0).required()
     })
   },
-  
+
   // Query parameter validation
   query: {
     pagination: Joi.object({
@@ -223,77 +223,73 @@ const schemas = {
 };
 
 // Validation middleware factory
-const validate = (schema, source = 'body') => {
-  return (req, res, next) => {
-    let dataToValidate;
-    
-    switch (source) {
-      case 'body':
-        dataToValidate = req.body;
-        break;
-      case 'query':
-        dataToValidate = req.query;
-        break;
-      case 'params':
-        dataToValidate = req.params;
-        break;
-      default:
-        dataToValidate = req.body;
-    }
-    
-    const { error, value } = schema.validate(dataToValidate, {
-      abortEarly: false,
-      stripUnknown: true,
-      convert: true
+const validate = (schema, source = 'body') => (req, res, next) => {
+  let dataToValidate;
+
+  switch (source) {
+  case 'body':
+    dataToValidate = req.body;
+    break;
+  case 'query':
+    dataToValidate = req.query;
+    break;
+  case 'params':
+    dataToValidate = req.params;
+    break;
+  default:
+    dataToValidate = req.body;
+  }
+
+  const { error, value } = schema.validate(dataToValidate, {
+    abortEarly: false,
+    stripUnknown: true,
+    convert: true
+  });
+
+  if (error) {
+    const errors = {};
+    error.details.forEach(detail => {
+      const key = detail.path.join('.');
+      errors[key] = detail.message;
     });
-    
-    if (error) {
-      const errors = {};
-      error.details.forEach(detail => {
-        const key = detail.path.join('.');
-        errors[key] = detail.message;
-      });
-      
-      return res.status(400).json({
-        error: 'Validation failed',
-        code: 'VALIDATION_ERROR',
-        details: errors
-      });
-    }
-    
-    // Replace the original data with validated/sanitized data
-    switch (source) {
-      case 'body':
-        req.body = value;
-        break;
-      case 'query':
-        req.query = value;
-        break;
-      case 'params':
-        req.params = value;
-        break;
-    }
-    
-    next();
-  };
+
+    return res.status(400).json({
+      error: 'Validation failed',
+      code: 'VALIDATION_ERROR',
+      details: errors
+    });
+  }
+
+  // Replace the original data with validated/sanitized data
+  switch (source) {
+  case 'body':
+    req.body = value;
+    break;
+  case 'query':
+    req.query = value;
+    break;
+  case 'params':
+    req.params = value;
+    break;
+  }
+
+  next();
 };
 
 // ID parameter validation
-const validateId = (paramName = 'id') => {
-  return (req, res, next) => {
-    const id = req.params[paramName];
-    
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({
-        error: 'Invalid ID parameter',
-        code: 'INVALID_ID',
-        parameter: paramName
-      });
-    }
-    
-    req.params[paramName] = parseInt(id);
-    next();
-  };
+const validateId = (paramName = 'id') => (req, res, next) => {
+  const id = req.params[paramName];
+
+  if (!id || isNaN(parseInt(id))) {
+    return res.status(400).json({
+      error: 'Invalid ID parameter',
+      code: 'INVALID_ID',
+      parameter: paramName
+    });
+  }
+
+  req.params[paramName] = parseInt(id);
+  next();
 };
 
 module.exports = {

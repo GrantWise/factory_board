@@ -31,8 +31,8 @@ class AnalyticsController {
         FROM manufacturing_orders
         WHERE created_at >= date('now', '-30 days')
       `).get();
-      metrics.completionRate = completionResult.total > 0 
-        ? Math.round((completionResult.completed / completionResult.total) * 100 * 10) / 10
+      metrics.completionRate = completionResult.total > 0
+        ? Math.round(completionResult.completed / completionResult.total * 100 * 10) / 10
         : 0;
 
       // Work centre utilization (average percentage)
@@ -107,9 +107,9 @@ class AnalyticsController {
           AND mo.completion_date >= date('now', '-${days} days')
       `;
 
-      let params = [];
+      const params = [];
       if (workCentreId) {
-        whereClause += ` AND mo.current_work_centre_id = ?`;
+        whereClause += ' AND mo.current_work_centre_id = ?';
         params.push(workCentreId);
       }
 
@@ -209,8 +209,8 @@ class AnalyticsController {
         ...wc,
         avg_cycle_time: Math.round((wc.avg_cycle_time || 0) * 100) / 100,
         utilization_status: wc.utilization_percent > 90 ? 'overloaded' :
-                          wc.utilization_percent > 70 ? 'high' :
-                          wc.utilization_percent > 40 ? 'normal' : 'low'
+          wc.utilization_percent > 70 ? 'high' :
+            wc.utilization_percent > 40 ? 'normal' : 'low'
       }));
 
       res.json({
@@ -360,11 +360,11 @@ class AnalyticsController {
       res.json({
         summary: {
           ...summary,
-          completion_rate: summary.total_orders > 0 
-            ? Math.round((summary.completed_orders / summary.total_orders) * 100 * 10) / 10
+          completion_rate: summary.total_orders > 0
+            ? Math.round(summary.completed_orders / summary.total_orders * 100 * 10) / 10
             : 0,
           quantity_completion_rate: summary.total_planned_quantity > 0
-            ? Math.round((summary.total_completed_quantity / summary.total_planned_quantity) * 100 * 10) / 10
+            ? Math.round(summary.total_completed_quantity / summary.total_planned_quantity * 100 * 10) / 10
             : 0
         },
         daily_production: dailyProduction,

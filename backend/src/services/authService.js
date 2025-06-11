@@ -84,87 +84,83 @@ class AuthService {
 
   // Authenticate user
   async login(username, password, ipAddress = null) {
-    try {
-      // Find user by username
-      const user = User.findByUsername(username);
-      
-      if (!user) {
-        // Log failed login attempt
-        AuditLog.create({
-          event_type: 'login_failed',
-          event_data: {
-            username,
-            reason: 'user_not_found',
-            ip_address: ipAddress
-          }
-        });
-        throw new Error('Invalid credentials');
-      }
+    // Find user by username
+    const user = User.findByUsername(username);
 
-      // Verify password
-      const isValidPassword = await this.verifyPassword(password, user.password_hash);
-      
-      if (!isValidPassword) {
-        // Log failed login attempt
-        AuditLog.create({
-          event_type: 'login_failed',
-          user_id: user.id,
-          event_data: {
-            username,
-            reason: 'invalid_password',
-            ip_address: ipAddress
-          }
-        });
-        throw new Error('Invalid credentials');
-      }
-
-      // Check if user is active
-      if (!user.is_active) {
-        AuditLog.create({
-          event_type: 'login_failed',
-          user_id: user.id,
-          event_data: {
-            username,
-            reason: 'account_inactive',
-            ip_address: ipAddress
-          }
-        });
-        throw new Error('Account is inactive');
-      }
-
-      // Generate tokens
-      const tokens = this.generateTokens(user);
-
-      // Log successful login
+    if (!user) {
+      // Log failed login attempt
       AuditLog.create({
-        event_type: 'login_success',
-        user_id: user.id,
+        event_type: 'login_failed',
         event_data: {
           username,
+          reason: 'user_not_found',
           ip_address: ipAddress
         }
       });
-
-      // Remove sensitive data
-      delete user.password_hash;
-
-      return {
-        user,
-        tokens
-      };
-    } catch (error) {
-      throw error;
+      throw new Error('Invalid credentials');
     }
+
+    // Verify password
+    const isValidPassword = await this.verifyPassword(password, user.password_hash);
+
+    if (!isValidPassword) {
+      // Log failed login attempt
+      AuditLog.create({
+        event_type: 'login_failed',
+        user_id: user.id,
+        event_data: {
+          username,
+          reason: 'invalid_password',
+          ip_address: ipAddress
+        }
+      });
+      throw new Error('Invalid credentials');
+    }
+
+    // Check if user is active
+    if (!user.is_active) {
+      AuditLog.create({
+        event_type: 'login_failed',
+        user_id: user.id,
+        event_data: {
+          username,
+          reason: 'account_inactive',
+          ip_address: ipAddress
+        }
+      });
+      throw new Error('Account is inactive');
+    }
+
+    // Generate tokens
+    const tokens = this.generateTokens(user);
+
+    // Log successful login
+    AuditLog.create({
+      event_type: 'login_success',
+      user_id: user.id,
+      event_data: {
+        username,
+        ip_address: ipAddress
+      }
+    });
+
+    // Remove sensitive data
+    delete user.password_hash;
+
+    return {
+      user,
+      tokens
+    };
   }
 
   // Refresh access token
   async refreshToken(refreshToken) {
     try {
       const decoded = this.verifyToken(refreshToken);
-      
+
       // Get fresh user data
       const user = User.findById(decoded.userId);
-      
+
       if (!user || !user.is_active) {
         throw new Error('User not found or inactive');
       }
@@ -190,7 +186,7 @@ class AuthService {
   // Logout (mainly for logging purposes)
   async logout(userId, ipAddress = null) {
     const user = User.findById(userId);
-    
+
     if (user) {
       AuditLog.create({
         event_type: 'logout',
@@ -208,14 +204,14 @@ class AuthService {
   // Change password
   async changePassword(userId, currentPassword, newPassword) {
     const user = User.findByUsername(User.findById(userId).username);
-    
+
     if (!user) {
       throw new Error('User not found');
     }
 
     // Verify current password
     const isValidPassword = await this.verifyPassword(currentPassword, user.password_hash);
-    
+
     if (!isValidPassword) {
       // Log failed password change
       AuditLog.create({
@@ -252,7 +248,7 @@ class AuthService {
   async resetPassword(userId, newPassword, adminUserId) {
     const user = User.findById(userId);
     const admin = User.findById(adminUserId);
-    
+
     if (!user) {
       throw new Error('User not found');
     }
@@ -286,21 +282,21 @@ class AuthService {
   // Get user profile
   getUserProfile(userId) {
     const user = User.findById(userId);
-    
+
     if (!user) {
       throw new Error('User not found');
     }
 
     // Remove sensitive data
     delete user.password_hash;
-    
+
     return user;
   }
 
   // Update user profile
   async updateProfile(userId, updates) {
     const user = User.findById(userId);
-    
+
     if (!user) {
       throw new Error('User not found');
     }
@@ -329,7 +325,7 @@ class AuthService {
 
     // Remove sensitive data
     delete updatedUser.password_hash;
-    
+
     return updatedUser;
   }
 }

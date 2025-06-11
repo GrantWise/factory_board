@@ -5,37 +5,37 @@ const { authenticateToken } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
 
 // Public routes
-router.post('/login', 
-  validate(schemas.user.login), 
+router.post('/login',
+  validate(schemas.user.login),
   AuthController.login
 );
 
-router.post('/refresh', 
+router.post('/refresh',
   AuthController.refreshToken
 );
 
-router.post('/register', 
-  validate(schemas.user.create), 
+router.post('/register',
+  validate(schemas.user.create),
   AuthController.register
 );
 
 // Protected routes (require authentication)
 router.use(authenticateToken);
 
-router.get('/me', 
+router.get('/me',
   AuthController.getCurrentUser
 );
 
-router.put('/profile', 
-  validate(schemas.user.update), 
+router.put('/profile',
+  validate(schemas.user.update),
   AuthController.updateProfile
 );
 
-router.post('/change-password', 
+router.post('/change-password',
   AuthController.changePassword
 );
 
-router.post('/logout', 
+router.post('/logout',
   AuthController.logout
 );
 

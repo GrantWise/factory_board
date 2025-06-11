@@ -9,13 +9,13 @@ const { validateId } = require('../middleware/validation');
 router.use(authenticateToken);
 
 // GET /api/characteristics - Get all available characteristics
-router.get('/', 
+router.get('/',
   requirePermission('orders:read'),
   CharacteristicsController.getAllCharacteristics
 );
 
 // GET /api/characteristics/types/:type - Get characteristics by type
-router.get('/types/:type', 
+router.get('/types/:type',
   requirePermission('orders:read'),
   CharacteristicsController.getCharacteristicsByType
 );
@@ -23,14 +23,14 @@ router.get('/types/:type',
 // Note: Order-specific characteristics routes are now in the orders router
 
 // PUT /api/characteristics/:id - Update a characteristic
-router.put('/:id', 
+router.put('/:id',
   validateId(),
   requirePermission('orders:write'),
   CharacteristicsController.updateCharacteristic
 );
 
 // DELETE /api/characteristics/:id - Delete a characteristic
-router.delete('/:id', 
+router.delete('/:id',
   validateId(),
   requirePermission('orders:write'),
   CharacteristicsController.deleteCharacteristic

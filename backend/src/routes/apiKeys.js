@@ -3,7 +3,7 @@ const router = express.Router();
 const ApiKeysController = require('../controllers/apiKeysController');
 const { authenticateToken } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
-const { requireRole } = require('../middleware/permissions');
+const { requireAnyRole } = require('../middleware/permissions');
 const Joi = require('joi');
 
 /**
@@ -169,9 +169,9 @@ const apiKeyUpdateSchema = Joi.object({
  *       403:
  *         $ref: '#/components/responses/ForbiddenError'
  */
-router.get('/', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.get('/',
+  authenticateToken,
+  requireAnyRole(['admin']),
   ApiKeysController.getAllApiKeys
 );
 
@@ -210,9 +210,9 @@ router.get('/',
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get('/:id', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.get('/:id',
+  authenticateToken,
+  requireAnyRole(['admin']),
   ApiKeysController.getApiKeyById
 );
 
@@ -273,9 +273,9 @@ router.get('/:id',
  *       409:
  *         $ref: '#/components/responses/ConflictError'
  */
-router.post('/', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.post('/',
+  authenticateToken,
+  requireAnyRole(['admin']),
   validate(apiKeyCreateSchema),
   ApiKeysController.createApiKey
 );
@@ -323,9 +323,9 @@ router.post('/',
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.put('/:id', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.put('/:id',
+  authenticateToken,
+  requireAnyRole(['admin']),
   validate(apiKeyUpdateSchema),
   ApiKeysController.updateApiKey
 );
@@ -373,9 +373,9 @@ router.put('/:id',
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.post('/:id/rotate', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.post('/:id/rotate',
+  authenticateToken,
+  requireAnyRole(['admin']),
   ApiKeysController.rotateApiKey
 );
 
@@ -412,9 +412,9 @@ router.post('/:id/rotate',
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.delete('/:id', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.delete('/:id',
+  authenticateToken,
+  requireAnyRole(['admin']),
   ApiKeysController.deleteApiKey
 );
 
@@ -468,9 +468,9 @@ router.delete('/:id',
  *       404:
  *         $ref: '#/components/responses/NotFoundError'
  */
-router.get('/:id/usage', 
-  authenticateToken, 
-  requireRole(['admin']), 
+router.get('/:id/usage',
+  authenticateToken,
+  requireAnyRole(['admin']),
   ApiKeysController.getApiKeyUsage
 );
 

@@ -14,13 +14,13 @@ class ManufacturingStep {
         planned_duration_minutes, status
       ) VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     const transaction = this.db.transaction(() => {
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         stmt.run(
           orderId,
-          step.step_number || (i + 1), // Use provided step_number or fallback to sequential
+          step.step_number || i + 1, // Use provided step_number or fallback to sequential
           step.operation_name,
           step.work_centre_id,
           step.planned_duration_minutes || null,
@@ -28,9 +28,9 @@ class ManufacturingStep {
         );
       }
     });
-    
+
     transaction();
-    
+
     return this.findByOrderId(orderId);
   }
 
@@ -46,7 +46,7 @@ class ManufacturingStep {
       WHERE ms.order_id = ?
       ORDER BY ms.step_number
     `).all(orderId);
-    
+
     return steps;
   }
 
@@ -54,7 +54,7 @@ class ManufacturingStep {
   update(stepId, stepData) {
     const fields = [];
     const values = [];
-    
+
     if (stepData.operation_name !== undefined) {
       fields.push('operation_name = ?');
       values.push(stepData.operation_name);
@@ -87,20 +87,20 @@ class ManufacturingStep {
       fields.push('completed_at = ?');
       values.push(stepData.completed_at);
     }
-    
+
     if (fields.length === 0) {
       return this.findById(stepId);
     }
-    
+
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(stepId);
-    
+
     const stmt = this.db.prepare(`
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     return this.findById(stepId);
   }
@@ -116,19 +116,19 @@ class ManufacturingStep {
       LEFT JOIN work_centres wc ON ms.work_centre_id = wc.id
       WHERE ms.id = ?
     `).get(stepId);
-    
+
     return step;
   }
 
   // Start a manufacturing step
   startStep(stepId, userId) {
     const now = new Date().toISOString();
-    
+
     const result = this.update(stepId, {
       status: 'in_progress',
       started_at: now
     });
-    
+
     // Log the event
     const step = this.findById(stepId);
     if (step) {
@@ -149,7 +149,7 @@ class ManufacturingStep {
         now
       );
     }
-    
+
     return result;
   }
 
@@ -159,18 +159,18 @@ class ManufacturingStep {
     if (!step) {
       throw new Error('Step not found');
     }
-    
+
     const now = new Date().toISOString();
-    const actualDuration = step.started_at ? 
+    const actualDuration = step.started_at ?
       Math.round((new Date(now) - new Date(step.started_at)) / (1000 * 60)) : null;
-    
+
     const result = this.update(stepId, {
       status: 'complete',
       completed_at: now,
       quantity_completed: quantityCompleted,
       actual_duration_minutes: actualDuration
     });
-    
+
     // Log the event
     this.db.prepare(`
       INSERT INTO audit_log (
@@ -190,7 +190,7 @@ class ManufacturingStep {
       }),
       now
     );
-    
+
     return result;
   }
 
@@ -213,7 +213,7 @@ class ManufacturingStep {
       ORDER BY ms.step_number
       LIMIT 1
     `).get(orderId);
-    
+
     return nextStep;
   }
 
@@ -230,7 +230,7 @@ class ManufacturingStep {
       ORDER BY ms.step_number
       LIMIT 1
     `).get(orderId);
-    
+
     return currentStep;
   }
 }

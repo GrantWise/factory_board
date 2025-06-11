@@ -5,7 +5,7 @@ const activeDragOperations = new Map();
 setInterval(() => {
   const now = Date.now();
   const LOCK_TIMEOUT = 30000; // 30 seconds
-  
+
   for (const [orderId, lock] of activeDragOperations.entries()) {
     if (now - lock.startTime > LOCK_TIMEOUT) {
       console.log(`Auto-releasing expired drag lock for order ${orderId}`);
@@ -22,11 +22,11 @@ const createDragLock = (orderId, userId, userName, orderNumber) => {
     orderNumber,
     startTime: Date.now()
   };
-  
+
   activeDragOperations.set(orderId.toString(), lockData);
-  
+
   console.log(`Drag lock created for order ${orderId} by user ${userName}`);
-  
+
   // Auto-expire after 30 seconds
   setTimeout(() => {
     if (activeDragOperations.has(orderId.toString())) {
@@ -34,7 +34,7 @@ const createDragLock = (orderId, userId, userName, orderNumber) => {
       activeDragOperations.delete(orderId.toString());
     }
   }, 30000);
-  
+
   return lockData;
 };
 
@@ -42,30 +42,26 @@ const createDragLock = (orderId, userId, userName, orderNumber) => {
 const releaseDragLock = (orderId, userId) => {
   const orderIdStr = orderId.toString();
   const lock = activeDragOperations.get(orderIdStr);
-  
+
   if (!lock) {
     return false; // Lock doesn't exist
   }
-  
+
   if (lock.userId !== userId) {
     return false; // User doesn't own the lock
   }
-  
+
   activeDragOperations.delete(orderIdStr);
   console.log(`Drag lock released for order ${orderId} by user ${lock.userName}`);
-  
+
   return true;
 };
 
 // Check if an order is locked
-const isOrderLocked = (orderId) => {
-  return activeDragOperations.has(orderId.toString());
-};
+const isOrderLocked = (orderId) => activeDragOperations.has(orderId.toString());
 
 // Get lock information for an order
-const getLockInfo = (orderId) => {
-  return activeDragOperations.get(orderId.toString()) || null;
-};
+const getLockInfo = (orderId) => activeDragOperations.get(orderId.toString()) || null;
 
 // Get all active locks
 const getAllActiveLocks = () => {
@@ -85,13 +81,13 @@ const getAllActiveLocks = () => {
 // Middleware to check if order is locked by another user
 const checkDragLock = (req, res, next) => {
   const orderId = req.params.id || req.body.orderId;
-  
+
   if (!orderId) {
     return next(); // No order ID to check
   }
-  
+
   const lock = getLockInfo(orderId);
-  
+
   if (lock && lock.userId !== req.user.id) {
     return res.status(423).json({
       error: 'Order currently being moved by another user',
@@ -101,7 +97,7 @@ const checkDragLock = (req, res, next) => {
       lockStartTime: lock.startTime
     });
   }
-  
+
   next();
 };
 
@@ -109,14 +105,14 @@ const checkDragLock = (req, res, next) => {
 const createLockForRequest = (req, res, next) => {
   const orderId = req.params.id;
   const orderNumber = req.body.orderNumber || req.params.id; // Fallback to ID if no order number
-  
+
   if (!orderId) {
     return res.status(400).json({
       error: 'Order ID required',
       code: 'MISSING_ORDER_ID'
     });
   }
-  
+
   // Check if already locked by another user
   const existingLock = getLockInfo(orderId);
   if (existingLock && existingLock.userId !== req.user.id) {
@@ -127,7 +123,7 @@ const createLockForRequest = (req, res, next) => {
       orderNumber: existingLock.orderNumber
     });
   }
-  
+
   // Create or refresh lock for current user
   const lock = createDragLock(
     orderId,
@@ -135,7 +131,7 @@ const createLockForRequest = (req, res, next) => {
     req.user.username,
     orderNumber
   );
-  
+
   req.dragLock = lock;
   next();
 };

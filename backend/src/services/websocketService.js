@@ -13,9 +13,9 @@ class WebSocketService {
   // Broadcast order moved event
   broadcastOrderMoved(order, fromWorkCentreId, toWorkCentreId, movedByUsername) {
     this.socketHandler.broadcastOrderMoved(
-      order, 
-      fromWorkCentreId, 
-      toWorkCentreId, 
+      order,
+      fromWorkCentreId,
+      toWorkCentreId,
       movedByUsername
     );
   }
@@ -23,9 +23,9 @@ class WebSocketService {
   // Broadcast order status change
   broadcastOrderStatusChanged(order, oldStatus, newStatus, changedByUsername) {
     this.socketHandler.broadcastOrderStatusChanged(
-      order, 
-      oldStatus, 
-      newStatus, 
+      order,
+      oldStatus,
+      newStatus,
       changedByUsername
     );
   }
@@ -33,8 +33,8 @@ class WebSocketService {
   // Broadcast work centre update
   broadcastWorkCentreUpdated(workCentre, updateType, updatedByUsername) {
     this.socketHandler.broadcastWorkCentreUpdated(
-      workCentre, 
-      updateType, 
+      workCentre,
+      updateType,
       updatedByUsername
     );
   }
@@ -134,7 +134,7 @@ class WebSocketService {
   getPlanningBoardStatus() {
     const stats = this.getConnectionStats();
     const users = this.getPlanningBoardUsers();
-    
+
     return {
       isActive: stats.planningBoardUsers > 0,
       activeUsers: users,

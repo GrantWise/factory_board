@@ -31,7 +31,7 @@ router.use(authenticateToken);
  * Returns key dashboard metrics for the manufacturing process.
  * Requires 'analytics:read' permission.
  */
-router.get('/dashboard', 
+router.get('/dashboard',
   requirePermission('analytics:read'),
   AnalyticsController.getDashboardMetrics
 );
@@ -41,7 +41,7 @@ router.get('/dashboard',
  * Returns cycle time analytics for orders and steps.
  * Requires 'analytics:read' permission.
  */
-router.get('/cycle-times', 
+router.get('/cycle-times',
   requirePermission('analytics:read'),
   AnalyticsController.getCycleTimes
 );
@@ -51,7 +51,7 @@ router.get('/cycle-times',
  * Returns performance metrics for each work centre.
  * Requires 'analytics:read' permission.
  */
-router.get('/work-centre-performance', 
+router.get('/work-centre-performance',
   requirePermission('analytics:read'),
   AnalyticsController.getWorkCentrePerformance
 );
@@ -61,7 +61,7 @@ router.get('/work-centre-performance',
  * Returns analytics on the flow of orders through the system.
  * Requires 'analytics:read' permission.
  */
-router.get('/order-flow', 
+router.get('/order-flow',
   requirePermission('analytics:read'),
   AnalyticsController.getOrderFlow
 );
@@ -72,7 +72,7 @@ router.get('/order-flow',
  * Requires 'audit:read' permission.
  * Validates query parameters using Joi schema.
  */
-router.get('/audit', 
+router.get('/audit',
   requirePermission('audit:read'),
   validate(schemas.query.auditFilters, 'query'),
   AnalyticsController.getAuditAnalytics
@@ -83,7 +83,7 @@ router.get('/audit',
  * Returns a summary of production analytics.
  * Requires 'analytics:read' permission.
  */
-router.get('/production-summary', 
+router.get('/production-summary',
   requirePermission('analytics:read'),
   AnalyticsController.getProductionSummary
 );

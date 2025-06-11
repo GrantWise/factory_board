@@ -12,7 +12,7 @@ class AuthController {
   async login(req, res, next) {
     try {
       const { username, password } = req.body;
-      
+
       if (!username || !password) {
         return next({
           status: 400,
@@ -53,7 +53,7 @@ class AuthController {
   async refreshToken(req, res, next) {
     try {
       const { refresh_token } = req.body;
-      
+
       if (!refresh_token) {
         return next({
           status: 400,
@@ -91,7 +91,7 @@ class AuthController {
   async updateProfile(req, res, next) {
     try {
       const updates = req.body;
-      
+
       // Remove sensitive fields that shouldn't be updated through this endpoint
       delete updates.password;
       delete updates.password_hash;
@@ -121,18 +121,20 @@ class AuthController {
   async changePassword(req, res, next) {
     try {
       const { currentPassword, newPassword } = req.body;
-      
+
       if (!currentPassword || !newPassword) {
-        return res.status(400).json({
-          error: 'Current password and new password are required',
-          code: 'MISSING_PASSWORDS'
+        return next({
+          status: 400,
+          code: 'MISSING_PASSWORDS',
+          message: 'Current password and new password are required'
         });
       }
 
       if (newPassword.length < 6) {
-        return res.status(400).json({
-          error: 'New password must be at least 6 characters long',
-          code: 'PASSWORD_TOO_SHORT'
+        return next({
+          status: 400,
+          code: 'PASSWORD_TOO_SHORT',
+          message: 'New password must be at least 6 characters long'
         });
       }
 
@@ -143,9 +145,10 @@ class AuthController {
       });
     } catch (error) {
       if (error.message === 'Current password is incorrect') {
-        return res.status(400).json({
-          error: error.message,
-          code: 'INVALID_CURRENT_PASSWORD'
+        return next({
+          status: 400,
+          code: 'INVALID_CURRENT_PASSWORD',
+          message: error.message
         });
       }
 
@@ -159,7 +162,7 @@ class AuthController {
       // This endpoint is typically admin-only in enterprise systems
       // For now, we'll make it available but could be restricted later
       const userData = req.body;
-      
+
       if (!userData.username || !userData.email || !userData.password || !userData.role) {
         return next({
           status: 400,

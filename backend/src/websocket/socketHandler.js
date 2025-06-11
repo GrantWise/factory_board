@@ -2,10 +2,10 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const config = require('../config/database');
 const User = require('../models/User');
-const { 
-  createDragLock, 
-  releaseDragLock, 
-  getAllActiveLocks 
+const {
+  createDragLock,
+  releaseDragLock,
+  getAllActiveLocks
 } = require('../middleware/dragLocks');
 
 class SocketHandler {
@@ -29,14 +29,14 @@ class SocketHandler {
     this.io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
-        
+
         if (!token) {
           return next(new Error('Authentication token required'));
         }
 
         const decoded = jwt.verify(token, config.jwt.secret);
         const user = User.findById(decoded.userId);
-        
+
         if (!user || !user.is_active) {
           return next(new Error('Invalid user or account inactive'));
         }
@@ -301,7 +301,7 @@ class SocketHandler {
       for (const [orderId, lockInfo] of Object.entries(activeLocks)) {
         if (lockInfo.userId === userId) {
           releaseDragLock(orderId, userId);
-          
+
           // Notify planning board users
           this.io.to('planning_board').emit('order_unlocked', {
             orderId: orderId,

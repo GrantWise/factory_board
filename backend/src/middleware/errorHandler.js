@@ -30,7 +30,7 @@ function errorHandler(err, req, res, next) {
   // Standard error response structure
   const errorResponse = {
     error: err.message || 'Internal Server Error',
-    code: err.code || 'INTERNAL_ERROR',
+    code: err.code || 'INTERNAL_ERROR'
   };
 
   // Optionally include details for validation or custom errors
@@ -50,4 +50,4 @@ function errorHandler(err, req, res, next) {
   res.status(status).json(errorResponse);
 }
 
-module.exports = errorHandler; 
+module.exports = errorHandler;

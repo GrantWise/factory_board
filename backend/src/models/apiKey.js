@@ -14,7 +14,7 @@ class ApiKey {
       INSERT INTO ${this.table} (name, key, system_id, is_active, rate_limit, ip_whitelist, created_by, expires_at, metadata)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(
       apiKeyData.name,
       apiKeyData.key,
@@ -26,7 +26,7 @@ class ApiKey {
       apiKeyData.expires_at || null,
       apiKeyData.metadata ? JSON.stringify(apiKeyData.metadata) : '{}'
     );
-    
+
     return this.findById(result.lastInsertRowid);
   }
 
@@ -38,7 +38,7 @@ class ApiKey {
       FROM ${this.table}
       WHERE id = ?
     `);
-    
+
     const result = stmt.get(id);
     if (result) {
       result.ip_whitelist = result.ip_whitelist ? JSON.parse(result.ip_whitelist) : [];
@@ -55,7 +55,7 @@ class ApiKey {
       FROM ${this.table}
       WHERE system_id = ? AND is_active = 1
     `);
-    
+
     const result = stmt.get(systemId);
     if (result) {
       result.ip_whitelist = result.ip_whitelist ? JSON.parse(result.ip_whitelist) : [];
@@ -72,7 +72,7 @@ class ApiKey {
       FROM ${this.table}
       ORDER BY created_at DESC
     `);
-    
+
     const results = stmt.all();
     return results.map(result => {
       result.ip_whitelist = result.ip_whitelist ? JSON.parse(result.ip_whitelist) : [];
@@ -85,7 +85,7 @@ class ApiKey {
   async generateKey(name, systemId, userId, options = {}) {
     const key = uuidv4();
     const hashedKey = await bcrypt.hash(key, 10);
-    
+
     const apiKeyData = {
       name,
       key: hashedKey,
@@ -109,7 +109,7 @@ class ApiKey {
       FROM ${this.table}
       WHERE system_id = ? AND is_active = 1
     `);
-    
+
     const apiKey = stmt.get(systemId);
     if (!apiKey) return false;
 
@@ -132,7 +132,7 @@ class ApiKey {
       SET last_used_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    
+
     return stmt.run(id);
   }
 
@@ -140,13 +140,13 @@ class ApiKey {
   async rotateKey(id, userId) {
     const key = uuidv4();
     const hashedKey = await bcrypt.hash(key, 10);
-    
+
     const stmt = this.db.prepare(`
       UPDATE ${this.table}
       SET key = ?
       WHERE id = ?
     `);
-    
+
     stmt.run(hashedKey, id);
     return key; // Return plain key only once
   }
@@ -155,7 +155,7 @@ class ApiKey {
   update(id, apiKeyData) {
     const fields = [];
     const values = [];
-    
+
     if (apiKeyData.name !== undefined) {
       fields.push('name = ?');
       values.push(apiKeyData.name);
@@ -180,19 +180,19 @@ class ApiKey {
       fields.push('metadata = ?');
       values.push(JSON.stringify(apiKeyData.metadata));
     }
-    
+
     if (fields.length === 0) {
       return this.findById(id);
     }
-    
+
     values.push(id);
-    
+
     const stmt = this.db.prepare(`
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     return this.findById(id);
   }
@@ -204,7 +204,7 @@ class ApiKey {
       SET is_active = 0
       WHERE id = ?
     `);
-    
+
     return stmt.run(id);
   }
 
@@ -221,4 +221,4 @@ class ApiKey {
   }
 }
 
-module.exports = new ApiKey(); 
+module.exports = new ApiKey();

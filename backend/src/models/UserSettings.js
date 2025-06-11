@@ -9,7 +9,7 @@ class UserSettings {
   // Create or update a user setting
   set(userId, settingKey, settingValue) {
     const valueStr = typeof settingValue === 'string' ? settingValue : JSON.stringify(settingValue);
-    
+
     const stmt = this.db.prepare(`
       INSERT INTO ${this.table} (user_id, setting_key, setting_value, updated_at)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -18,7 +18,7 @@ class UserSettings {
         setting_value = excluded.setting_value,
         updated_at = CURRENT_TIMESTAMP
     `);
-    
+
     const result = stmt.run(userId, settingKey, valueStr);
     return this.get(userId, settingKey);
   }
@@ -144,14 +144,14 @@ class UserSettings {
       FROM ${this.table} 
       WHERE user_id IN (${placeholders})
     `;
-    
+
     const params = [...userIds];
-    
+
     if (settingKey) {
       query += ' AND setting_key = ?';
       params.push(settingKey);
     }
-    
+
     query += ' ORDER BY user_id, setting_key';
 
     const settings = this.db.prepare(query).all(...params);
@@ -162,13 +162,13 @@ class UserSettings {
       if (!grouped[setting.user_id]) {
         grouped[setting.user_id] = {};
       }
-      
+
       try {
         setting.setting_value = JSON.parse(setting.setting_value);
       } catch (e) {
         // Keep as string if not valid JSON
       }
-      
+
       grouped[setting.user_id][setting.setting_key] = setting.setting_value;
     }
 

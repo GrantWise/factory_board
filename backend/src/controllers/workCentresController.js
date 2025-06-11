@@ -133,9 +133,10 @@ class WorkCentresController {
 
       const workCentre = WorkCentre.findById(workCentreId);
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
@@ -167,9 +168,10 @@ class WorkCentresController {
       const orderUpdates = req.body;
 
       if (!Array.isArray(orderUpdates) || orderUpdates.length === 0) {
-        return res.status(400).json({
-          error: 'Invalid reorder data',
-          code: 'INVALID_DATA'
+        return next({
+          status: 400,
+          code: 'INVALID_DATA',
+          message: 'Invalid reorder data'
         });
       }
 
@@ -201,9 +203,10 @@ class WorkCentresController {
 
       const workCentre = WorkCentre.findById(workCentreId);
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
@@ -240,18 +243,20 @@ class WorkCentresController {
 
       const workCentre = WorkCentre.findById(workCentreId);
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
       const machine = WorkCentre.updateMachine(machineId, updates);
 
       if (!machine) {
-        return res.status(404).json({
-          error: 'Machine not found',
-          code: 'MACHINE_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'MACHINE_NOT_FOUND',
+          message: 'Machine not found'
         });
       }
 
@@ -286,18 +291,20 @@ class WorkCentresController {
 
       const workCentre = WorkCentre.findById(workCentreId);
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
       // Get machine info before deletion for logging
       const machine = workCentre.machines.find(m => m.id == machineId);
       if (!machine) {
-        return res.status(404).json({
-          error: 'Machine not found',
-          code: 'MACHINE_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'MACHINE_NOT_FOUND',
+          message: 'Machine not found'
         });
       }
 
@@ -334,8 +341,8 @@ class WorkCentresController {
       const workCentres = WorkCentre.findAll(!activeOnly);
 
       // Filter to only active work centres if requested
-      const filteredWorkCentres = activeOnly ? 
-        workCentres.filter(wc => wc.is_active) : 
+      const filteredWorkCentres = activeOnly ?
+        workCentres.filter(wc => wc.is_active) :
         workCentres;
 
       // Return simplified data for external systems

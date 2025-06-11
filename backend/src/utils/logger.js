@@ -37,15 +37,15 @@ class Logger {
     // Console output with color coding
     const colors = {
       ERROR: '\x1b[31m', // Red
-      WARN: '\x1b[33m',  // Yellow  
+      WARN: '\x1b[33m',  // Yellow
       INFO: '\x1b[36m',  // Cyan
       DEBUG: '\x1b[35m'  // Magenta
     };
     const reset = '\x1b[0m';
-    
+
     const coloredLevel = `${colors[level]}${level}${reset}`;
     const output = `${timestamp} [${coloredLevel}] ${this.module}: ${message}`;
-    
+
     if (meta && Object.keys(meta).length > 0) {
       console.log(output, meta);
     } else {
@@ -67,7 +67,7 @@ class Logger {
 
       const logFile = path.join(logDir, `app-${new Date().toISOString().split('T')[0]}.log`);
       const logLine = JSON.stringify(logEntry) + '\n';
-      
+
       fs.appendFileSync(logFile, logLine);
     } catch (error) {
       console.error('Failed to write to log file:', error);

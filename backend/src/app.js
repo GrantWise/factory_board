@@ -39,11 +39,11 @@ const app = express();
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
+      defaultSrc: ['\'self\''],
+      styleSrc: ['\'self\'', '\'unsafe-inline\''],
+      scriptSrc: ['\'self\''],
+      imgSrc: ['\'self\'', 'data:', 'https:']
+    }
   },
   crossOriginEmbedderPolicy: false
 }));
@@ -60,7 +60,7 @@ const limiter = rateLimit({
     code: 'RATE_LIMIT_EXCEEDED'
   },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: false
 });
 
 // Apply rate limiting to auth endpoints (more lenient in development)
@@ -111,6 +111,8 @@ const orderRoutes = require('./routes/orders');
 const analyticsRoutes = require('./routes/analytics');
 const apiKeyRoutes = require('./routes/apiKeys');
 const externalRoutes = require('./routes/external');
+const characteristicsRoutes = require('./routes/characteristics');
+const userSettingsRoutes = require('./routes/userSettings');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -119,6 +121,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/api-keys', apiKeyRoutes);
 app.use('/api/external', externalRoutes);
+app.use('/api/characteristics', characteristicsRoutes);
+app.use('/api/settings', userSettingsRoutes);
 
 // Planning board endpoint (aggregated data)
 app.get('/api/planning-board', require('./controllers/planningController').getPlanningBoardData);

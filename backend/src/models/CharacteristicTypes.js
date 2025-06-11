@@ -22,7 +22,7 @@ class CharacteristicTypes {
       SELECT * FROM ${this.table}
       WHERE type_key = ? AND is_active = 1
     `).get(typeKey);
-    
+
     return type ? this.parseDetectionPatterns(type) : null;
   }
 
@@ -95,7 +95,7 @@ class CharacteristicTypes {
     const values = [];
 
     const allowedFields = [
-      'name', 'description', 'detection_patterns', 'icon', 
+      'name', 'description', 'detection_patterns', 'icon',
       'is_active', 'sort_order'
     ];
 
@@ -133,7 +133,7 @@ class CharacteristicTypes {
     const type = this.db.prepare(`
       SELECT * FROM ${this.table} WHERE id = ?
     `).get(id);
-    
+
     return type ? this.parseDetectionPatterns(type) : null;
   }
 
@@ -205,7 +205,7 @@ class CharacteristicTypes {
         try {
           const regex = new RegExp(pattern, 'gi');
           const matches = text.match(regex);
-          
+
           if (matches) {
             for (const match of matches) {
               detected.push({
@@ -225,7 +225,7 @@ class CharacteristicTypes {
     }
 
     // Remove duplicates
-    const unique = detected.filter((item, index, self) => 
+    const unique = detected.filter((item, index, self) =>
       index === self.findIndex(t => t.type_key === item.type_key && t.value === item.value)
     );
 

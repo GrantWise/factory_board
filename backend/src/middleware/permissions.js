@@ -40,72 +40,66 @@ function hasPermission(userRole, permission) {
 }
 
 // Middleware to require specific permission
-const requirePermission = (permission) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        code: 'AUTH_REQUIRED' 
-      });
-    }
-    
-    if (!hasPermission(req.user.role, permission)) {
-      return res.status(403).json({ 
-        error: 'Insufficient permissions',
-        code: 'INSUFFICIENT_PERMISSIONS',
-        required: permission,
-        user_role: req.user.role
-      });
-    }
-    
-    next();
-  };
+const requirePermission = (permission) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  if (!hasPermission(req.user.role, permission)) {
+    return res.status(403).json({
+      error: 'Insufficient permissions',
+      code: 'INSUFFICIENT_PERMISSIONS',
+      required: permission,
+      user_role: req.user.role
+    });
+  }
+
+  next();
 };
 
 // Middleware to require specific role
-const requireRole = (requiredRole) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        code: 'AUTH_REQUIRED' 
-      });
-    }
-    
-    if (req.user.role !== requiredRole) {
-      return res.status(403).json({ 
-        error: 'Insufficient role privileges',
-        code: 'INSUFFICIENT_ROLE',
-        required: requiredRole,
-        user_role: req.user.role
-      });
-    }
-    
-    next();
-  };
+const requireRole = (requiredRole) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  if (req.user.role !== requiredRole) {
+    return res.status(403).json({
+      error: 'Insufficient role privileges',
+      code: 'INSUFFICIENT_ROLE',
+      required: requiredRole,
+      user_role: req.user.role
+    });
+  }
+
+  next();
 };
 
 // Middleware to require one of multiple roles
-const requireAnyRole = (allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        code: 'AUTH_REQUIRED' 
-      });
-    }
-    
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        error: 'Insufficient role privileges',
-        code: 'INSUFFICIENT_ROLE',
-        required: allowedRoles,
-        user_role: req.user.role
-      });
-    }
-    
-    next();
-  };
+const requireAnyRole = (allowedRoles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED'
+    });
+  }
+
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      error: 'Insufficient role privileges',
+      code: 'INSUFFICIENT_ROLE',
+      required: allowedRoles,
+      user_role: req.user.role
+    });
+  }
+
+  next();
 };
 
 module.exports = {

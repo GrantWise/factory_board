@@ -55,20 +55,20 @@ class CharacteristicsController {
 
       // Validate required fields
       if (!type || !value) {
-        return next({ 
-          status: 400, 
-          code: 'VALIDATION_ERROR', 
-          message: 'Type and value are required' 
+        return next({
+          status: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Type and value are required'
         });
       }
 
       // Check if order exists
       const order = ManufacturingOrder.findById(parseInt(orderId));
       if (!order) {
-        return next({ 
-          status: 404, 
-          code: 'ORDER_NOT_FOUND', 
-          message: 'Order not found' 
+        return next({
+          status: 404,
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -99,10 +99,10 @@ class CharacteristicsController {
 
       const existing = JobCharacteristic.findById(parseInt(id));
       if (!existing) {
-        return next({ 
-          status: 404, 
-          code: 'CHARACTERISTIC_NOT_FOUND', 
-          message: 'Characteristic not found' 
+        return next({
+          status: 404,
+          code: 'CHARACTERISTIC_NOT_FOUND',
+          message: 'Characteristic not found'
         });
       }
 
@@ -126,10 +126,10 @@ class CharacteristicsController {
 
       const existing = JobCharacteristic.findById(parseInt(id));
       if (!existing) {
-        return next({ 
-          status: 404, 
-          code: 'CHARACTERISTIC_NOT_FOUND', 
-          message: 'Characteristic not found' 
+        return next({
+          status: 404,
+          code: 'CHARACTERISTIC_NOT_FOUND',
+          message: 'Characteristic not found'
         });
       }
 
@@ -147,10 +147,10 @@ class CharacteristicsController {
 
       const order = ManufacturingOrder.findById(parseInt(orderId));
       if (!order) {
-        return next({ 
-          status: 404, 
-          code: 'ORDER_NOT_FOUND', 
-          message: 'Order not found' 
+        return next({
+          status: 404,
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -170,16 +170,16 @@ class CharacteristicsController {
 
       const order = ManufacturingOrder.findById(parseInt(orderId));
       if (!order) {
-        return next({ 
-          status: 404, 
-          code: 'ORDER_NOT_FOUND', 
-          message: 'Order not found' 
+        return next({
+          status: 404,
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
       // Get potential characteristics without creating them
       const detectedCharacteristics = JobCharacteristic.detectCharacteristicsForOrder(order);
-      
+
       // Add color assignments
       const existingColors = JobCharacteristic.getExistingColorAssignments();
       const withColors = detectedCharacteristics.map(char => ({

@@ -12,7 +12,7 @@ class User {
       INSERT INTO ${this.table} (username, email, password_hash, role, first_name, last_name)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(
       userData.username,
       userData.email,
@@ -21,7 +21,7 @@ class User {
       userData.first_name || null,
       userData.last_name || null
     );
-    
+
     return this.findById(result.lastInsertRowid);
   }
 
@@ -32,7 +32,7 @@ class User {
       FROM ${this.table}
       WHERE id = ? AND is_active = 1
     `);
-    
+
     return stmt.get(id);
   }
 
@@ -43,7 +43,7 @@ class User {
       FROM ${this.table}
       WHERE username = ? AND is_active = 1
     `);
-    
+
     return stmt.get(username);
   }
 
@@ -54,7 +54,7 @@ class User {
       FROM ${this.table}
       WHERE email = ? AND is_active = 1
     `);
-    
+
     return stmt.get(email);
   }
 
@@ -65,7 +65,7 @@ class User {
       FROM ${this.table}
       ORDER BY created_at DESC
     `);
-    
+
     return stmt.all();
   }
 
@@ -73,7 +73,7 @@ class User {
   update(id, userData) {
     const fields = [];
     const values = [];
-    
+
     if (userData.username !== undefined) {
       fields.push('username = ?');
       values.push(userData.username);
@@ -102,20 +102,20 @@ class User {
       fields.push('is_active = ?');
       values.push(userData.is_active);
     }
-    
+
     if (fields.length === 0) {
       return this.findById(id);
     }
-    
+
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
-    
+
     const stmt = this.db.prepare(`
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     return this.findById(id);
   }
@@ -127,7 +127,7 @@ class User {
       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
-    
+
     return stmt.run(id);
   }
 

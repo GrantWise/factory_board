@@ -9,34 +9,34 @@ const { validate, schemas, validateId } = require('../middleware/validation');
 router.use(authenticateToken);
 
 // GET /api/work-centres
-router.get('/', 
+router.get('/',
   requirePermission('work_centres:read'),
   WorkCentresController.getAllWorkCentres
 );
 
 // GET /api/work-centres/:id
-router.get('/:id', 
+router.get('/:id',
   validateId(),
   requirePermission('work_centres:read'),
   WorkCentresController.getWorkCentre
 );
 
 // POST /api/work-centres
-router.post('/', 
+router.post('/',
   requirePermission('work_centres:write'),
   validate(schemas.workCentre.create),
   WorkCentresController.createWorkCentre
 );
 
 // PUT /api/work-centres/reorder - MUST come before /:id route
-router.put('/reorder', 
+router.put('/reorder',
   requirePermission('work_centres:write'),
   validate(schemas.workCentre.reorder),
   WorkCentresController.reorderWorkCentres
 );
 
 // PUT /api/work-centres/:id
-router.put('/:id', 
+router.put('/:id',
   validateId(),
   requirePermission('work_centres:write'),
   validate(schemas.workCentre.update),
@@ -44,7 +44,7 @@ router.put('/:id',
 );
 
 // DELETE /api/work-centres/:id
-router.delete('/:id', 
+router.delete('/:id',
   validateId(),
   requirePermission('work_centres:delete'),
   WorkCentresController.deleteWorkCentre
@@ -52,7 +52,7 @@ router.delete('/:id',
 
 // Machine management routes
 // POST /api/work-centres/:id/machines
-router.post('/:id/machines', 
+router.post('/:id/machines',
   validateId(),
   requirePermission('work_centres:write'),
   validate(schemas.machine.create),
@@ -60,7 +60,7 @@ router.post('/:id/machines',
 );
 
 // PUT /api/work-centres/:id/machines/:machineId
-router.put('/:id/machines/:machineId', 
+router.put('/:id/machines/:machineId',
   validateId(),
   validateId('machineId'),
   requirePermission('work_centres:write'),
@@ -69,7 +69,7 @@ router.put('/:id/machines/:machineId',
 );
 
 // DELETE /api/work-centres/:id/machines/:machineId
-router.delete('/:id/machines/:machineId', 
+router.delete('/:id/machines/:machineId',
   validateId(),
   validateId('machineId'),
   requirePermission('work_centres:delete'),

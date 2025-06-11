@@ -15,7 +15,7 @@ class ApiKeysController {
   async getAllApiKeys(req, res, next) {
     try {
       const apiKeys = ApiKey.findAll();
-      
+
       // Remove sensitive key data from response
       const sanitizedKeys = apiKeys.map(key => ({
         id: key.id,
@@ -84,19 +84,19 @@ class ApiKeysController {
 
       // Validate required fields
       if (!name || !system_id) {
-        return next({ 
-          status: 400, 
-          code: 'MISSING_REQUIRED_FIELDS', 
-          message: 'Name and system_id are required' 
+        return next({
+          status: 400,
+          code: 'MISSING_REQUIRED_FIELDS',
+          message: 'Name and system_id are required'
         });
       }
 
       // Check if system_id already exists
       if (ApiKey.systemIdExists(system_id)) {
-        return next({ 
-          status: 409, 
-          code: 'SYSTEM_ID_EXISTS', 
-          message: 'System ID already exists' 
+        return next({
+          status: 409,
+          code: 'SYSTEM_ID_EXISTS',
+          message: 'System ID already exists'
         });
       }
 
@@ -108,8 +108,8 @@ class ApiKeysController {
         metadata: metadata
       });
 
-      logger.info('API key created', { 
-        system_id, 
+      logger.info('API key created', {
+        system_id,
         created_by: userId,
         expires_at
       });
@@ -154,10 +154,10 @@ class ApiKeysController {
 
       const updatedKey = ApiKey.update(parseInt(id), updateData);
 
-      logger.info('API key updated', { 
-        id: parseInt(id), 
+      logger.info('API key updated', {
+        id: parseInt(id),
         system_id: existingKey.system_id,
-        updated_by: req.user.id 
+        updated_by: req.user.id
       });
 
       res.json({
@@ -192,10 +192,10 @@ class ApiKeysController {
 
       const newKey = await ApiKey.rotateKey(parseInt(id), userId);
 
-      logger.info('API key rotated', { 
-        id: parseInt(id), 
+      logger.info('API key rotated', {
+        id: parseInt(id),
         system_id: existingKey.system_id,
-        rotated_by: userId 
+        rotated_by: userId
       });
 
       res.json({
@@ -224,10 +224,10 @@ class ApiKeysController {
 
       ApiKey.delete(parseInt(id));
 
-      logger.info('API key deleted', { 
-        id: parseInt(id), 
+      logger.info('API key deleted', {
+        id: parseInt(id),
         system_id: existingKey.system_id,
-        deleted_by: req.user.id 
+        deleted_by: req.user.id
       });
 
       res.json({

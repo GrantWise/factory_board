@@ -14,7 +14,7 @@ class AuditLog {
         user_id, event_data, queue_depth_from, queue_depth_to, timestamp
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(
       logData.event_type,
       logData.order_id || null,
@@ -26,7 +26,7 @@ class AuditLog {
       logData.queue_depth_to || null,
       logData.timestamp || new Date().toISOString()
     );
-    
+
     return this.findById(result.lastInsertRowid);
   }
 
@@ -48,7 +48,7 @@ class AuditLog {
       LEFT JOIN work_centres wc_to ON al.to_work_centre_id = wc_to.id
       WHERE al.id = ?
     `).get(id);
-    
+
     if (entry && entry.event_data) {
       try {
         entry.event_data = JSON.parse(entry.event_data);
@@ -56,50 +56,50 @@ class AuditLog {
         // Keep as string if JSON parse fails
       }
     }
-    
+
     return entry;
   }
 
   // Get audit logs with filters
   findAll(filters = {}) {
-    let whereConditions = [];
-    let params = [];
-    
+    const whereConditions = [];
+    const params = [];
+
     if (filters.event_type) {
       whereConditions.push('al.event_type = ?');
       params.push(filters.event_type);
     }
-    
+
     if (filters.order_id) {
       whereConditions.push('al.order_id = ?');
       params.push(filters.order_id);
     }
-    
+
     if (filters.user_id) {
       whereConditions.push('al.user_id = ?');
       params.push(filters.user_id);
     }
-    
+
     if (filters.work_centre_id) {
       whereConditions.push('(al.from_work_centre_id = ? OR al.to_work_centre_id = ?)');
       params.push(filters.work_centre_id, filters.work_centre_id);
     }
-    
+
     if (filters.from_date) {
       whereConditions.push('al.timestamp >= ?');
       params.push(filters.from_date);
     }
-    
+
     if (filters.to_date) {
       whereConditions.push('al.timestamp <= ?');
       params.push(filters.to_date);
     }
-    
+
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
-    
+
     const limit = filters.limit || 100;
     const offset = filters.offset || 0;
-    
+
     const entries = this.db.prepare(`
       SELECT 
         al.*,
@@ -118,7 +118,7 @@ class AuditLog {
       ORDER BY al.timestamp DESC
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    
+
     // Parse event_data JSON for each entry
     return entries.map(entry => {
       if (entry.event_data) {
@@ -138,11 +138,11 @@ class AuditLog {
     const order = this.db.prepare('SELECT order_number FROM manufacturing_orders WHERE id = ?').get(orderId);
     const fromWC = fromWorkCentreId ? this.db.prepare('SELECT name, code FROM work_centres WHERE id = ?').get(fromWorkCentreId) : null;
     const toWC = this.db.prepare('SELECT name, code FROM work_centres WHERE id = ?').get(toWorkCentreId);
-    
+
     // Get queue depths
     const queueDepthFrom = fromWorkCentreId ? this.getWorkCentreQueueDepth(fromWorkCentreId) : 0;
     const queueDepthTo = this.getWorkCentreQueueDepth(toWorkCentreId);
-    
+
     return this.create({
       event_type: 'order_moved',
       order_id: orderId,
@@ -163,7 +163,7 @@ class AuditLog {
   // Log order status change
   logOrderStatusChange(orderId, oldStatus, newStatus, userId) {
     const order = this.db.prepare('SELECT order_number FROM manufacturing_orders WHERE id = ?').get(orderId);
-    
+
     return this.create({
       event_type: 'order_status_changed',
       order_id: orderId,
@@ -191,13 +191,13 @@ class AuditLog {
   // Get work centre queue depth for audit logging
   getWorkCentreQueueDepth(workCentreId) {
     if (!workCentreId) return 0;
-    
+
     const result = this.db.prepare(`
       SELECT COUNT(*) as count
       FROM manufacturing_orders
       WHERE current_work_centre_id = ? AND status IN ('not_started', 'in_progress')
     `).get(workCentreId);
-    
+
     return result.count;
   }
 
@@ -205,7 +205,7 @@ class AuditLog {
   getAnalytics(filters = {}) {
     const fromDate = filters.from_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
     const toDate = filters.to_date || new Date().toISOString();
-    
+
     // Order movements per day
     const dailyMovements = this.db.prepare(`
       SELECT 
@@ -218,7 +218,7 @@ class AuditLog {
       GROUP BY DATE(timestamp)
       ORDER BY date
     `).all(fromDate, toDate);
-    
+
     // Most active work centres (destination)
     const workCentreActivity = this.db.prepare(`
       SELECT 
@@ -234,7 +234,7 @@ class AuditLog {
       ORDER BY moves_to DESC
       LIMIT 10
     `).all(fromDate, toDate);
-    
+
     // Most active users
     const userActivity = this.db.prepare(`
       SELECT 
@@ -248,7 +248,7 @@ class AuditLog {
       ORDER BY actions DESC
       LIMIT 10
     `).all(fromDate, toDate);
-    
+
     return {
       daily_movements: dailyMovements,
       work_centre_activity: workCentreActivity,
@@ -259,12 +259,12 @@ class AuditLog {
   // Clean up old audit logs (for maintenance)
   cleanupOldLogs(daysToKeep = 90) {
     const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000).toISOString();
-    
+
     const stmt = this.db.prepare(`
       DELETE FROM ${this.table}
       WHERE timestamp < ?
     `);
-    
+
     const result = stmt.run(cutoffDate);
     return result.changes;
   }

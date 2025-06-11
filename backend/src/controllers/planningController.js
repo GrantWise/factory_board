@@ -29,14 +29,14 @@ class PlanningController {
       }
 
       // Add unassigned orders group
-      ordersByWorkCentre['unassigned'] = [];
+      ordersByWorkCentre.unassigned = [];
 
       for (const order of orders) {
         const workCentreId = order.workCentreId || 'unassigned';
         if (ordersByWorkCentre[workCentreId]) {
           ordersByWorkCentre[workCentreId].push(order);
         } else {
-          ordersByWorkCentre['unassigned'].push(order);
+          ordersByWorkCentre.unassigned.push(order);
         }
       }
 
@@ -44,7 +44,7 @@ class PlanningController {
       const enrichedWorkCentres = workCentres.map(wc => ({
         ...wc,
         currentJobs: ordersByWorkCentre[wc.id].length,
-        utilizationPercent: Math.round((ordersByWorkCentre[wc.id].length / wc.capacity) * 100),
+        utilizationPercent: Math.round(ordersByWorkCentre[wc.id].length / wc.capacity * 100),
         orders: ordersByWorkCentre[wc.id]
       }));
 
@@ -74,27 +74,30 @@ class PlanningController {
       const { orderId, toWorkCentreId, reason } = req.body;
 
       if (!orderId || !toWorkCentreId) {
-        return res.status(400).json({
-          error: 'Order ID and destination work centre ID are required',
-          code: 'MISSING_PARAMETERS'
+        return next({
+          status: 400,
+          code: 'MISSING_PARAMETERS',
+          message: 'Order ID and destination work centre ID are required'
         });
       }
 
       // Check if order exists
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'ORDER_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
       // Check if destination work centre exists
       const toWorkCentre = WorkCentre.findById(toWorkCentreId);
       if (!toWorkCentre) {
-        return res.status(404).json({
-          error: 'Destination work centre not found',
-          code: 'WORK_CENTRE_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'WORK_CENTRE_NOT_FOUND',
+          message: 'Destination work centre not found'
         });
       }
 
@@ -109,7 +112,7 @@ class PlanningController {
       // Return updated planning board data for the affected work centres
       const fromWorkCentreId = order.workCentreId;
       const affectedWorkCentres = [fromWorkCentreId, toWorkCentreId].filter(Boolean);
-      
+
       const updatedWorkCentres = affectedWorkCentres.map(wcId => {
         const wc = WorkCentre.findById(wcId);
         if (wc) {
@@ -117,7 +120,7 @@ class PlanningController {
           return {
             ...wc,
             currentJobs: orders.length,
-            utilizationPercent: Math.round((orders.length / wc.capacity) * 100)
+            utilizationPercent: Math.round(orders.length / wc.capacity * 100)
           };
         }
         return null;

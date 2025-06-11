@@ -16,13 +16,13 @@ class JobCharacteristic {
       characteristicData.display_name || characteristicData.value,
       characteristicData.is_system_generated ? 1 : 0
     ];
-    
+
     const stmt = this.db.prepare(`
       INSERT INTO ${this.table} (
         order_id, type, value, color, display_name, is_system_generated
       ) VALUES (?, ?, ?, ?, ?, ?)
     `);
-    
+
     const result = stmt.run(...sqlParams);
     return this.findById(result.lastInsertRowid);
   }
@@ -75,7 +75,7 @@ class JobCharacteristic {
     for (const char of characteristics) {
       const existingColors = this.getExistingColorAssignments();
       const colorAssignment = this.assignColor(char.type, char.value, existingColors);
-      
+
       const created_char = this.create({
         order_id: order.id,
         type: char.type,
@@ -84,7 +84,7 @@ class JobCharacteristic {
         color: colorAssignment,
         is_system_generated: char.is_system_generated
       });
-      
+
       created.push(created_char);
     }
 
@@ -118,7 +118,7 @@ class JobCharacteristic {
         try {
           const regex = new RegExp(pattern, 'gi');
           const matches = searchText.match(regex);
-          
+
           if (matches) {
             for (const match of matches) {
               characteristics.push({
@@ -192,7 +192,7 @@ class JobCharacteristic {
   // Assign color to a characteristic
   assignColor(type, value, existingAssignments) {
     const key = `${type}_${value}`;
-    
+
     // If we already have a color for this type+value, use it
     if (existingAssignments.has(key)) {
       return existingAssignments.get(key);
@@ -209,7 +209,7 @@ class JobCharacteristic {
 
     const palette = colorPalettes[type] || colorPalettes.custom;
     const usedColors = Array.from(existingAssignments.values());
-    
+
     // Find first color in palette that's not used, or cycle through palette
     for (let i = 0; i < palette.length; i++) {
       if (!usedColors.includes(palette[i])) {
@@ -286,13 +286,13 @@ class JobCharacteristic {
     `).all();
   }
 
-  // Get available characteristics for settings UI
-  getAvailableCharacteristics() {
+  // Get available characteristics from database types with usage statistics
+  getAvailableCharacteristicsFromTypes() {
     const CharacteristicTypes = require('./CharacteristicTypes');
-    
+
     // Get all characteristic types from database
     const types = CharacteristicTypes.getAll();
-    
+
     // Add usage statistics for each type
     return types.map(type => {
       const usage = this.db.prepare(`

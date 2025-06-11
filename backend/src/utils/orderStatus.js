@@ -1,7 +1,7 @@
 /**
  * Order Status Utility
  * ===================
- * 
+ *
  * Centralizes order status definitions and validation.
  * This ensures consistent status handling across the application.
  */
@@ -24,9 +24,7 @@ const VALID_STATUSES = Object.values(ORDER_STATUSES);
  * @param {string} status - The status to validate
  * @returns {boolean} - True if status is valid
  */
-const isValidStatus = (status) => {
-  return VALID_STATUSES.includes(status);
-};
+const isValidStatus = (status) => VALID_STATUSES.includes(status);
 
 /**
  * Validates a status and throws an error if invalid
@@ -44,4 +42,4 @@ module.exports = {
   VALID_STATUSES,
   isValidStatus,
   validateStatus
-}; 
+};

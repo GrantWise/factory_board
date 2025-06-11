@@ -10,7 +10,7 @@ const { validate, schemas, validateId } = require('../middleware/validation');
 router.use(authenticateToken);
 
 // GET /api/users - Get all users (admin only)
-router.get('/', 
+router.get('/',
   requirePermission('users:read'),
   async (req, res) => {
     try {
@@ -28,7 +28,7 @@ router.get('/',
 );
 
 // GET /api/users/:id - Get user by ID (admin only)
-router.get('/:id', 
+router.get('/:id',
   validateId(),
   requirePermission('users:read'),
   async (req, res) => {
@@ -53,7 +53,7 @@ router.get('/:id',
 );
 
 // POST /api/users - Create new user (admin only)
-router.post('/', 
+router.post('/',
   requirePermission('users:write'),
   validate(schemas.user.create),
   async (req, res) => {
@@ -79,7 +79,7 @@ router.post('/',
 );
 
 // PUT /api/users/:id - Update user (admin only)
-router.put('/:id', 
+router.put('/:id',
   validateId(),
   requirePermission('users:write'),
   validate(schemas.user.update),
@@ -133,7 +133,7 @@ router.put('/:id',
 );
 
 // DELETE /api/users/:id - Delete user (admin only)
-router.delete('/:id', 
+router.delete('/:id',
   validateId(),
   requirePermission('users:delete'),
   async (req, res) => {
@@ -171,7 +171,7 @@ router.delete('/:id',
 );
 
 // POST /api/users/:id/reset-password - Reset user password (admin only)
-router.post('/:id/reset-password', 
+router.post('/:id/reset-password',
   validateId(),
   requireRole('admin'),
   async (req, res) => {

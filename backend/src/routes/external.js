@@ -149,7 +149,7 @@ const externalOrdersSchema = Joi.object({
   orders: Joi.array().min(1).max(100).items(
     Joi.object({
       order_number: Joi.string().min(1).max(50).required(),
-      stock_code: Joi.string().min(1).max(50).required(), 
+      stock_code: Joi.string().min(1).max(50).required(),
       description: Joi.string().min(1).max(255).required(),
       quantity_to_make: Joi.number().integer().min(1).required(),
       due_date: Joi.date().iso().optional(),
@@ -168,7 +168,7 @@ const externalOrdersSchema = Joi.object({
   validate_only: Joi.boolean().optional()
 });
 
-router.post('/orders', 
+router.post('/orders',
   validateApiKey,
   logApiRequest,
   validate(externalOrdersSchema),

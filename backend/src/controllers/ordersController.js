@@ -162,9 +162,9 @@ class OrdersController {
       // Log status changes
       if (updates.status && updates.status !== existingOrder.status) {
         AuditLog.logOrderStatusChange(
-          orderId, 
-          existingOrder.status, 
-          updates.status, 
+          orderId,
+          existingOrder.status,
+          updates.status,
           req.user.id
         );
       }
@@ -272,9 +272,9 @@ class OrdersController {
 
       // Move the order
       const updatedOrder = ManufacturingOrder.moveToWorkCentre(
-        orderId, 
-        to_work_centre_id, 
-        req.user.id, 
+        orderId,
+        to_work_centre_id,
+        req.user.id,
         reason
       );
 
@@ -321,7 +321,7 @@ class OrdersController {
       const { completed } = req.body;
 
       const released = releaseDragLock(orderId, req.user.id);
-      
+
       if (!released) {
         return next({
           status: 400,
@@ -344,9 +344,10 @@ class OrdersController {
     try {
       const orders = Array.isArray(req.body) ? req.body : [];
       if (!orders.length) {
-        return res.status(400).json({
-          error: 'No orders provided',
-          code: 'NO_ORDERS'
+        return next({
+          status: 400,
+          code: 'NO_ORDERS',
+          message: 'No orders provided'
         });
       }
 
@@ -361,7 +362,7 @@ class OrdersController {
       };
 
       for (const orderData of orders) {
-        let result = { order_number: orderData.order_number };
+        const result = { order_number: orderData.order_number };
         try {
           // Check for duplicate order numbers in the batch
           if (batchOrderNumbers.has(orderData.order_number)) {
@@ -532,9 +533,10 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -558,9 +560,10 @@ class OrdersController {
 
       const order = ManufacturingOrder.findById(orderId);
       if (!order) {
-        return res.status(404).json({
-          error: 'Order not found',
-          code: 'NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'NOT_FOUND',
+          message: 'Order not found'
         });
       }
 
@@ -583,18 +586,20 @@ class OrdersController {
 
       // Validate input
       if (!work_centre_id || !Array.isArray(order_positions)) {
-        return res.status(400).json({
-          error: 'work_centre_id and order_positions array are required',
-          code: 'INVALID_INPUT'
+        return next({
+          status: 400,
+          code: 'INVALID_INPUT',
+          message: 'work_centre_id and order_positions array are required'
         });
       }
 
       // Validate each position entry
       for (const position of order_positions) {
         if (!position.order_id || typeof position.position !== 'number') {
-          return res.status(400).json({
-            error: 'Each position must have order_id and position',
-            code: 'INVALID_POSITION_DATA'
+          return next({
+            status: 400,
+            code: 'INVALID_POSITION_DATA',
+            message: 'Each position must have order_id and position'
           });
         }
       }
@@ -602,9 +607,10 @@ class OrdersController {
       // Verify work centre exists
       const workCentre = WorkCentre.findById(work_centre_id);
       if (!workCentre) {
-        return res.status(404).json({
-          error: 'Work centre not found',
-          code: 'WORK_CENTRE_NOT_FOUND'
+        return next({
+          status: 404,
+          code: 'WORK_CENTRE_NOT_FOUND',
+          message: 'Work centre not found'
         });
       }
 
@@ -612,7 +618,7 @@ class OrdersController {
       console.log('🔄 Reordering in backend:', { work_centre_id, order_positions });
       const result = ManufacturingOrder.reorderInWorkCentre(work_centre_id, order_positions);
       console.log('✅ Database update result:', result);
-      
+
       // Check what the database actually contains after update
       const updatedOrders = ManufacturingOrder.findAll({ work_centre_id });
       console.log('📊 Orders after database update:', updatedOrders.filter(o => o.current_work_centre_id === work_centre_id).map(o => ({
@@ -671,15 +677,15 @@ class OrdersController {
         try {
           // Add system tracking
           orderData.created_by = 1; // System user
-          orderData.metadata = { 
-            source: 'external', 
+          orderData.metadata = {
+            source: 'external',
             system_id: systemId,
             imported_at: new Date().toISOString()
           };
 
           // Check if order exists
           const existing = ManufacturingOrder.findAll({ order_number: orderData.order_number })[0];
-          
+
           if (existing) {
             // Update existing order
             ManufacturingOrder.update(existing.id, orderData);
@@ -687,7 +693,7 @@ class OrdersController {
           } else {
             // Create new order
             const newOrder = ManufacturingOrder.create(orderData);
-            
+
             // Create manufacturing steps if provided
             if (orderData.manufacturing_steps && orderData.manufacturing_steps.length > 0) {
               // Map work centre codes to IDs
@@ -700,7 +706,7 @@ class OrdersController {
               });
               ManufacturingStep.createStepsForOrder(newOrder.id, stepsWithIds);
             }
-            
+
             summary.imported++;
           }
         } catch (error) {
@@ -724,17 +730,17 @@ class OrdersController {
   async getOrderStatusForExternal(req, res, next) {
     try {
       const { orderNumber } = req.params;
-      
+
       const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
       if (!order) {
         return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       }
 
-      const workCentre = order.current_work_centre_id ? 
+      const workCentre = order.current_work_centre_id ?
         WorkCentre.findById(order.current_work_centre_id) : null;
 
-      const progressPercentage = order.quantity_to_make > 0 ? 
-        (order.quantity_completed / order.quantity_to_make) * 100 : 0;
+      const progressPercentage = order.quantity_to_make > 0 ?
+        order.quantity_completed / order.quantity_to_make * 100 : 0;
 
       res.json({
         message: 'Order status retrieved successfully',
@@ -760,18 +766,18 @@ class OrdersController {
     try {
       const { orderNumber } = req.params;
       const { quantity_completed, current_operation, current_work_centre_code, status, step_updates } = req.body;
-      
+
       const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
       if (!order) {
         return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
       }
 
       const updateData = {};
-      
+
       if (quantity_completed !== undefined) updateData.quantity_completed = quantity_completed;
       if (current_operation !== undefined) updateData.current_operation = current_operation;
       if (status !== undefined) updateData.status = status;
-      
+
       if (current_work_centre_code) {
         const workCentre = WorkCentre.findAll({ code: current_work_centre_code })[0];
         if (workCentre) {
@@ -793,8 +799,8 @@ class OrdersController {
         }
       }
 
-      const progressPercentage = updatedOrder.quantity_to_make > 0 ? 
-        (updatedOrder.quantity_completed / updatedOrder.quantity_to_make) * 100 : 0;
+      const progressPercentage = updatedOrder.quantity_to_make > 0 ?
+        updatedOrder.quantity_completed / updatedOrder.quantity_to_make * 100 : 0;
 
       res.json({
         message: 'Order progress updated successfully',
@@ -815,7 +821,7 @@ class OrdersController {
     try {
       const { orderNumber } = req.params;
       const { to_work_centre_code, reason } = req.body;
-      
+
       const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
       if (!order) {
         return next({
@@ -835,13 +841,13 @@ class OrdersController {
         });
       }
 
-      const fromWorkCentre = order.current_work_centre_id ? 
+      const fromWorkCentre = order.current_work_centre_id ?
         WorkCentre.findById(order.current_work_centre_id) : null;
 
       // Move the order (using null user ID for external moves)
       const updatedOrder = ManufacturingOrder.moveToWorkCentre(
-        order.id, 
-        toWorkCentre.id, 
+        order.id,
+        toWorkCentre.id,
         null, // External system moves don't have a user
         reason || 'External system move'
       );
@@ -865,9 +871,9 @@ class OrdersController {
     try {
       const { orderNumber } = req.params;
       const { status, reason } = req.body;
-      
+
       console.log(`[DEBUG] Updating order ${orderNumber} status to ${status}`);
-      
+
       const order = ManufacturingOrder.findAll({ order_number: orderNumber })[0];
       if (!order) {
         return next({ status: 404, code: 'ORDER_NOT_FOUND', message: 'Order not found' });
@@ -875,11 +881,11 @@ class OrdersController {
 
       const oldStatus = order.status;
       console.log(`[DEBUG] Current status: ${oldStatus}, New status: ${status}`);
-      
+
       // Update the order status
       console.log(`[DEBUG] About to call ManufacturingOrder.update for order ID ${order.id}`);
       const updatedOrder = ManufacturingOrder.update(order.id, { status });
-      console.log(`[DEBUG] ManufacturingOrder.update completed successfully`);
+      console.log('[DEBUG] ManufacturingOrder.update completed successfully');
 
       res.json({
         message: 'Order status updated successfully',
@@ -891,7 +897,7 @@ class OrdersController {
         }
       });
     } catch (error) {
-      console.log(`[DEBUG] Error in updateOrderStatusFromExternal:`, error);
+      console.log('[DEBUG] Error in updateOrderStatusFromExternal:', error);
       next({ status: 500, code: 'STATUS_UPDATE_FAILED', message: error.message });
     }
   }
@@ -899,10 +905,10 @@ class OrdersController {
   // Helper method to validate external orders
   validateExternalOrders(orders) {
     const results = [];
-    
+
     for (const order of orders) {
       const result = { order_number: order.order_number };
-      
+
       try {
         // Basic validation
         if (!order.order_number || !order.stock_code || !order.description || !order.quantity_to_make) {
@@ -919,10 +925,10 @@ class OrdersController {
         result.valid = false;
         result.errors = [error.message];
       }
-      
+
       results.push(result);
     }
-    
+
     return {
       total_orders: orders.length,
       valid_orders: results.filter(r => r.valid).length,

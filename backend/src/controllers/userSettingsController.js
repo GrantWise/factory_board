@@ -11,18 +11,18 @@ class UserSettingsController {
   async getUserSettings(req, res, next) {
     try {
       const { userId } = req.params;
-      
+
       // Ensure user can only access their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
       const settings = UserSettings.getAllForUser(parseInt(userId));
-      
+
       // If no settings exist, return defaults
       if (settings.length === 0) {
         const defaults = UserSettings.getDefaultSettings();
@@ -45,33 +45,33 @@ class UserSettingsController {
   async getUserSetting(req, res, next) {
     try {
       const { userId, key } = req.params;
-      
+
       // Ensure user can only access their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
       const setting = UserSettings.get(parseInt(userId), key);
-      
+
       if (!setting) {
         // Return default value if available
         const defaults = UserSettings.getDefaultSettings();
         if (defaults[key]) {
-          return res.json({ 
-            setting_key: key, 
+          return res.json({
+            setting_key: key,
             setting_value: defaults[key],
-            is_default: true 
+            is_default: true
           });
         }
-        
-        return next({ 
-          status: 404, 
-          code: 'SETTING_NOT_FOUND', 
-          message: 'Setting not found' 
+
+        return next({
+          status: 404,
+          code: 'SETTING_NOT_FOUND',
+          message: 'Setting not found'
         });
       }
 
@@ -86,21 +86,21 @@ class UserSettingsController {
     try {
       const { userId, key } = req.params;
       const { value } = req.body;
-      
+
       // Ensure user can only modify their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
       if (value === undefined) {
-        return next({ 
-          status: 400, 
-          code: 'VALIDATION_ERROR', 
-          message: 'Value is required' 
+        return next({
+          status: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Value is required'
         });
       }
 
@@ -116,21 +116,21 @@ class UserSettingsController {
     try {
       const { userId } = req.params;
       const settings = req.body;
-      
+
       // Ensure user can only modify their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
       if (!settings || typeof settings !== 'object') {
-        return next({ 
-          status: 400, 
-          code: 'VALIDATION_ERROR', 
-          message: 'Settings object is required' 
+        return next({
+          status: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Settings object is required'
         });
       }
 
@@ -145,13 +145,13 @@ class UserSettingsController {
   async deleteUserSetting(req, res, next) {
     try {
       const { userId, key } = req.params;
-      
+
       // Ensure user can only modify their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
@@ -166,13 +166,13 @@ class UserSettingsController {
   async getVisualCharacteristicsSettings(req, res, next) {
     try {
       const { userId } = req.params;
-      
+
       // Ensure user can only access their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
@@ -188,22 +188,22 @@ class UserSettingsController {
     try {
       const { userId } = req.params;
       const settings = req.body;
-      
+
       // Ensure user can only modify their own settings (unless admin)
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
-        return next({ 
-          status: 403, 
-          code: 'ACCESS_DENIED', 
-          message: 'Access denied' 
+        return next({
+          status: 403,
+          code: 'ACCESS_DENIED',
+          message: 'Access denied'
         });
       }
 
       // Validate settings structure
       if (typeof settings !== 'object') {
-        return next({ 
-          status: 400, 
-          code: 'VALIDATION_ERROR', 
-          message: 'Settings must be an object' 
+        return next({
+          status: 400,
+          code: 'VALIDATION_ERROR',
+          message: 'Settings must be an object'
         });
       }
 
