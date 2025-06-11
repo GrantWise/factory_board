@@ -3,20 +3,49 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/database');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const { AUTH } = require('../config/constants');
 
+/**
+ * Authentication Service
+ * ======================
+ *
+ * Handles user authentication, password management, and JWT token operations.
+ * Provides comprehensive audit logging for security events.
+ *
+ * Key Features:
+ * - Secure password hashing with bcrypt (12 rounds)
+ * - JWT token generation and validation
+ * - User registration and login with audit trails
+ * - Password change functionality with security validation
+ */
 class AuthService {
-  // Hash password
+  /**
+   * Hash a password using bcrypt with salt rounds
+   * @param {string} password - Plain text password to hash
+   * @returns {Promise<string>} Hashed password
+   */
   async hashPassword(password) {
-    const saltRounds = 12;
-    return await bcrypt.hash(password, saltRounds);
+    return await bcrypt.hash(password, AUTH.BCRYPT_SALT_ROUNDS);
   }
 
-  // Verify password
+  /**
+   * Verify a password against its hash
+   * @param {string} password - Plain text password to verify
+   * @param {string} hashedPassword - Hashed password to compare against
+   * @returns {Promise<boolean>} True if password matches, false otherwise
+   */
   async verifyPassword(password, hashedPassword) {
     return await bcrypt.compare(password, hashedPassword);
   }
 
-  // Generate JWT tokens
+  /**
+   * Generate JWT access and refresh tokens for a user
+   * @param {Object} user - User object
+   * @param {number} user.id - User ID
+   * @param {string} user.username - Username
+   * @param {string} user.role - User role (admin, scheduler, viewer)
+   * @returns {Object} Object containing accessToken and refreshToken
+   */
   generateTokens(user) {
     const payload = {
       userId: user.id,
@@ -44,7 +73,18 @@ class AuthService {
     }
   }
 
-  // Register new user
+  /**
+   * Register a new user with validation and audit logging
+   * @param {Object} userData - User registration data
+   * @param {string} userData.username - Unique username
+   * @param {string} userData.email - User email address
+   * @param {string} userData.password - Plain text password (will be hashed)
+   * @param {string} userData.role - User role (admin, scheduler, viewer)
+   * @param {string} [userData.first_name] - User's first name
+   * @param {string} [userData.last_name] - User's last name
+   * @returns {Promise<Object>} Created user object (without password)
+   * @throws {Error} If username or email already exists
+   */
   async register(userData) {
     // Check if username already exists
     if (User.usernameExists(userData.username)) {
@@ -82,7 +122,17 @@ class AuthService {
     return user;
   }
 
-  // Authenticate user
+  /**
+   * Authenticate a user with username and password
+   * @param {string} username - Username to authenticate
+   * @param {string} password - Plain text password
+   * @param {string|null} [ipAddress=null] - Client IP address for audit logging
+   * @returns {Promise<Object>} Object containing user data and JWT tokens
+   * @returns {Object} returns.user - User object (without password)
+   * @returns {string} returns.accessToken - JWT access token
+   * @returns {string} returns.refreshToken - JWT refresh token
+   * @throws {Error} If credentials are invalid or user is inactive
+   */
   async login(username, password, ipAddress = null) {
     // Find user by username
     const user = User.findByUsername(username);

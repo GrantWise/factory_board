@@ -9,7 +9,14 @@ const AuditLog = require('../models/AuditLog');
  * Now uses next(err) for error propagation to the centralized error handler.
  */
 class AnalyticsController {
-  // GET /api/analytics/dashboard
+  /**
+   * Get dashboard metrics including active orders, completion rates, and work centre statistics
+   * @route GET /api/analytics/dashboard
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with comprehensive dashboard metrics
+   */
   async getDashboardMetrics(req, res, next) {
     try {
       const db = getDatabase();
@@ -93,7 +100,17 @@ class AnalyticsController {
     }
   }
 
-  // GET /api/analytics/cycle-times
+  /**
+   * Get cycle time analytics for manufacturing operations
+   * @route GET /api/analytics/cycle-times
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Query parameters
+   * @param {number} [req.query.days=30] - Number of days to analyze
+   * @param {number} [req.query.work_centre_id] - Filter by specific work centre
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with cycle time statistics
+   */
   async getCycleTimes(req, res, next) {
     try {
       const db = getDatabase();
@@ -173,7 +190,16 @@ class AnalyticsController {
     }
   }
 
-  // GET /api/analytics/work-centre-performance
+  /**
+   * Get performance analytics for all work centres
+   * @route GET /api/analytics/work-centre-performance
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Query parameters
+   * @param {number} [req.query.days=30] - Number of days to analyze
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with work centre performance metrics
+   */
   async getWorkCentrePerformance(req, res, next) {
     try {
       const db = getDatabase();

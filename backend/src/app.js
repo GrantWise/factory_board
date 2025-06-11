@@ -17,7 +17,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
 
 const config = require('./config/database');
@@ -51,29 +50,15 @@ app.use(helmet({
 // CORS configuration
 app.use(cors(config.server.cors));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.max,
-  message: {
-    error: 'Too many requests from this IP',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// Security Service - Centralized security policy enforcement
+const SecurityService = require('./services/securityService');
 
-// Apply rate limiting to auth endpoints (more lenient in development)
-app.use('/api/auth', rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 25 : 100, // Increased from 5 to 25 for production
-  message: {
-    error: 'Too many authentication attempts',
-    code: 'AUTH_RATE_LIMIT_EXCEEDED'
-  }
-}));
-
-app.use('/api', limiter);
+// Apply hierarchical rate limiting using security service
+// This addresses root cause: Security-by-middleware anti-pattern
+app.use('/api/auth', SecurityService.createPolicyMiddleware('auth'));
+app.use('/api/admin', SecurityService.createPolicyMiddleware('admin'));
+app.use('/api/external', SecurityService.createPolicyMiddleware('api-key'));
+app.use('/api', SecurityService.createPolicyMiddleware('global'));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

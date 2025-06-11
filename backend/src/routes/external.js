@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const OrdersController = require('../controllers/ordersController');
-const { validateApiKey, logApiRequest } = require('../middleware/apiKeyAuth');
+const { requireApiKey } = require('../middleware/enhancedApiKeyAuth');
 const { validate } = require('../middleware/validation');
 const Joi = require('joi');
 const { VALID_STATUSES } = require('../utils/orderStatus');
@@ -169,8 +169,7 @@ const externalOrdersSchema = Joi.object({
 });
 
 router.post('/orders',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   validate(externalOrdersSchema),
   OrdersController.importExternalOrders
 );
@@ -241,8 +240,7 @@ router.post('/orders',
  *         $ref: '#/components/responses/NotFoundError'
  */
 router.get('/orders/:orderNumber/status',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   OrdersController.getOrderStatusForExternal
 );
 
@@ -358,8 +356,7 @@ const orderProgressSchema = Joi.object({
 });
 
 router.put('/orders/:orderNumber/progress',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   validate(orderProgressSchema),
   OrdersController.updateOrderProgressFromExternal
 );
@@ -420,8 +417,7 @@ router.put('/orders/:orderNumber/progress',
  *         $ref: '#/components/responses/ForbiddenError'
  */
 router.get('/work-centres',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   require('../controllers/workCentresController').getWorkCentresForExternal
 );
 
@@ -514,8 +510,7 @@ const orderMoveSchema = Joi.object({
 });
 
 router.put('/orders/:orderNumber/move',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   validate(orderMoveSchema),
   OrdersController.moveOrderFromExternal
 );
@@ -601,8 +596,7 @@ const orderStatusSchema = Joi.object({
 });
 
 router.put('/orders/:orderNumber/status',
-  validateApiKey,
-  logApiRequest,
+  requireApiKey,
   validate(orderStatusSchema),
   OrdersController.updateOrderStatusFromExternal
 );

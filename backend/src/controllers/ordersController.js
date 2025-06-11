@@ -12,7 +12,20 @@ const { checkDragLock, createLockForRequest, releaseDragLock } = require('../mid
  * Now uses next(err) for error propagation to the centralized error handler.
  */
 class OrdersController {
-  // GET /api/orders
+  /**
+   * Get all manufacturing orders with optional filtering
+   * @route GET /api/orders
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Query parameters for filtering
+   * @param {string} [req.query.status] - Filter by order status (not_started, in_progress, complete, overdue, on_hold, cancelled)
+   * @param {string} [req.query.priority] - Filter by priority level (low, medium, high, urgent)
+   * @param {number} [req.query.work_centre_id] - Filter by current work centre ID
+   * @param {string} [req.query.due_before] - Filter by due date (ISO date string)
+   * @param {string} [req.query.search] - Search in order number, stock code, or description
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with orders array and count
+   */
   async getAllOrders(req, res, next) {
     try {
       const filters = {
@@ -42,7 +55,16 @@ class OrdersController {
     }
   }
 
-  // GET /api/orders/:id
+  /**
+   * Get a single manufacturing order by ID
+   * @route GET /api/orders/:id
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - URL parameters
+   * @param {string} req.params.id - Order ID
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with order details including manufacturing steps and characteristics
+   */
   async getOrder(req, res, next) {
     try {
       const order = ManufacturingOrder.findById(req.params.id);
@@ -64,7 +86,25 @@ class OrdersController {
     }
   }
 
-  // POST /api/orders
+  /**
+   * Create a new manufacturing order with optional manufacturing steps
+   * @route POST /api/orders
+   * @param {Object} req - Express request object
+   * @param {Object} req.body - Order creation data
+   * @param {string} req.body.order_number - Unique order identifier
+   * @param {string} req.body.stock_code - Product/part stock code
+   * @param {string} req.body.description - Order description
+   * @param {number} req.body.quantity_to_make - Target quantity to manufacture
+   * @param {string} [req.body.priority] - Priority level (low, medium, high, urgent)
+   * @param {string} [req.body.due_date] - Due date in ISO format
+   * @param {number} [req.body.current_work_centre_id] - Initial work centre assignment
+   * @param {Array} [req.body.manufacturing_steps] - Array of manufacturing step definitions
+   * @param {Object} req.user - Authenticated user object
+   * @param {number} req.user.id - User ID for audit trail
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with created order details
+   */
   async createOrder(req, res, next) {
     try {
       const orderData = req.body;
@@ -123,7 +163,22 @@ class OrdersController {
     }
   }
 
-  // PUT /api/orders/:id
+  /**
+   * Update an existing manufacturing order
+   * @route PUT /api/orders/:id
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - URL parameters
+   * @param {string} req.params.id - Order ID to update
+   * @param {Object} req.body - Update data
+   * @param {string} [req.body.description] - Updated description
+   * @param {number} [req.body.quantity_to_make] - Updated target quantity
+   * @param {string} [req.body.priority] - Updated priority level
+   * @param {string} [req.body.status] - Updated order status
+   * @param {string} [req.body.due_date] - Updated due date
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with updated order details
+   */
   async updateOrder(req, res, next) {
     try {
       const orderId = req.params.id;
@@ -245,7 +300,22 @@ class OrdersController {
     }
   }
 
-  // PUT /api/orders/:id/move
+  /**
+   * Move a manufacturing order to a different work centre
+   * @route PUT /api/orders/:id/move
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - URL parameters
+   * @param {string} req.params.id - Order ID to move
+   * @param {Object} req.body - Move operation data
+   * @param {number} req.body.to_work_centre_id - Destination work centre ID
+   * @param {string} [req.body.reason] - Reason for the move (for audit trail)
+   * @param {number} [req.body.new_position] - Specific position in destination work centre
+   * @param {Object} req.user - Authenticated user object
+   * @param {number} req.user.id - User ID for audit trail
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with updated order details
+   */
   async moveOrder(req, res, next) {
     try {
       const orderId = req.params.id;
@@ -339,7 +409,20 @@ class OrdersController {
     }
   }
 
-  // POST /api/orders/import
+  /**
+   * Import multiple manufacturing orders from CSV or JSON data
+   * @route POST /api/orders/import
+   * @param {Object} req - Express request object
+   * @param {Object} req.body - Import data
+   * @param {Array} req.body.orders - Array of order objects to import
+   * @param {boolean} [req.body.validate_only] - If true, only validate data without saving
+   * @param {boolean} [req.body.update_existing] - If true, update existing orders with same order_number
+   * @param {Object} req.user - Authenticated user object
+   * @param {number} req.user.id - User ID for audit trail
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with import results (created count, updated count, errors)
+   */
   async importOrders(req, res, next) {
     try {
       const orders = Array.isArray(req.body) ? req.body : [];

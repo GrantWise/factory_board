@@ -8,11 +8,18 @@ const ManufacturingOrder = require('../models/ManufacturingOrder');
  * Handles all endpoints related to job characteristics and visual grouping.
  */
 class CharacteristicsController {
-  // GET /api/characteristics
+  /**
+   * Get comprehensive characteristics data including statistics and available values
+   * @route GET /api/characteristics
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with stats and available characteristics
+   */
   async getAllCharacteristics(req, res, next) {
     try {
       const stats = JobCharacteristic.getCharacteristicStats();
-      const available = JobCharacteristic.getAvailableCharacteristics();
+      const available = JobCharacteristic.getAvailableCharacteristicsFromTypes();
 
       res.json({
         stats,
@@ -47,7 +54,21 @@ class CharacteristicsController {
     }
   }
 
-  // POST /api/orders/:id/characteristics
+  /**
+   * Create a new job characteristic for a specific order
+   * @route POST /api/orders/:id/characteristics
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - Route parameters
+   * @param {number} req.params.id - Order ID
+   * @param {Object} req.body - Request body
+   * @param {string} req.body.type - Characteristic type (e.g., 'material', 'priority')
+   * @param {string} req.body.value - Characteristic value
+   * @param {string} [req.body.color] - Display color (auto-assigned if not provided)
+   * @param {string} [req.body.display_name] - Human-readable name
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with created characteristic
+   */
   async createOrderCharacteristic(req, res, next) {
     try {
       const { id: orderId } = req.params;
@@ -140,7 +161,17 @@ class CharacteristicsController {
     }
   }
 
-  // POST /api/orders/:id/characteristics/refresh
+  /**
+   * Refresh system-generated characteristics for an order
+   * @route POST /api/orders/:id/characteristics/refresh
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - Route parameters
+   * @param {number} req.params.id - Order ID
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with refreshed characteristics
+   * @note Deletes existing system characteristics and regenerates them
+   */
   async refreshOrderCharacteristics(req, res, next) {
     try {
       const { id: orderId } = req.params;

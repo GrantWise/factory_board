@@ -36,12 +36,12 @@ class User {
     return stmt.get(id);
   }
 
-  // Find user by username (for login)
+  // Find user by username (for login) - case insensitive
   findByUsername(username) {
     const stmt = this.db.prepare(`
       SELECT id, username, email, password_hash, role, first_name, last_name, is_active
       FROM ${this.table}
-      WHERE username = ? AND is_active = 1
+      WHERE LOWER(username) = LOWER(?) AND is_active = 1
     `);
 
     return stmt.get(username);

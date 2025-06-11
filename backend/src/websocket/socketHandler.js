@@ -66,7 +66,12 @@ class SocketHandler {
     return this.io;
   }
 
-  handleConnection(socket) {
+  /**
+   * Track a newly connected user and their socket
+   * @param {Object} socket - Socket.IO socket object
+   * @private
+   */
+  _trackConnectedUser(socket) {
     const userId = socket.userId;
     const username = socket.username;
 
@@ -87,15 +92,28 @@ class SocketHandler {
     this.userSockets.get(userId).add(socket.id);
 
     console.log(`User ${username} (${userId}) connected via socket ${socket.id}`);
+  }
 
-    // Send current user info and active locks
+  /**
+   * Send initial connection data to newly connected socket
+   * @param {Object} socket - Socket.IO socket object
+   * @private
+   */
+  _sendConnectionEstablished(socket) {
     socket.emit('connection_established', {
       user: socket.userInfo,
       connectedUsers: this.getConnectedUsersList(),
       activeLocks: getAllActiveLocks()
     });
+  }
 
-    // Handle planning board room joining
+  /**
+   * Register all event handlers for a socket connection
+   * @param {Object} socket - Socket.IO socket object
+   * @private
+   */
+  _registerSocketEventHandlers(socket) {
+    // Handle planning board room operations
     socket.on('join_planning_board', (data) => {
       this.handleJoinPlanningBoard(socket, data);
     });
@@ -113,25 +131,33 @@ class SocketHandler {
       this.handleEndDrag(socket, data);
     });
 
-    // Handle order updates
+    // Handle data updates
     socket.on('order_updated', (data) => {
       this.handleOrderUpdated(socket, data);
     });
 
-    // Handle work centre updates
     socket.on('work_centre_updated', (data) => {
       this.handleWorkCentreUpdated(socket, data);
     });
 
-    // Handle disconnection
+    // Handle connection lifecycle
     socket.on('disconnect', (reason) => {
       this.handleDisconnection(socket, reason);
     });
 
-    // Handle ping/pong for connection health
     socket.on('ping', () => {
       socket.emit('pong');
     });
+  }
+
+  /**
+   * Handle new socket connection
+   * @param {Object} socket - Socket.IO socket object
+   */
+  handleConnection(socket) {
+    this._trackConnectedUser(socket);
+    this._sendConnectionEstablished(socket);
+    this._registerSocketEventHandlers(socket);
   }
 
   handleJoinPlanningBoard(socket, data) {

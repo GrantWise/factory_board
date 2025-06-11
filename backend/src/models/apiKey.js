@@ -2,6 +2,20 @@ const { getDatabase } = require('../utils/database');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 
+/**
+ * ApiKey Model
+ * ============
+ *
+ * Handles database operations for API key management including creation,
+ * verification, rotation, and access control with security features.
+ *
+ * Key Features:
+ * - Secure key hashing with bcrypt
+ * - IP whitelist validation support
+ * - Rate limiting configuration
+ * - Expiration date management
+ * - Comprehensive audit logging
+ */
 class ApiKey {
   constructor() {
     this.db = getDatabase();
@@ -81,7 +95,18 @@ class ApiKey {
     });
   }
 
-  // Generate a new API key
+  /**
+   * Generate a new API key with secure hashing
+   * @param {string} name - Human-readable name for the API key
+   * @param {string} systemId - Unique system identifier
+   * @param {number} userId - User ID creating the key
+   * @param {Object} [options={}] - Additional options
+   * @param {number} [options.rateLimit=1000] - Rate limit per window
+   * @param {Array} [options.ipWhitelist=[]] - Array of allowed IP addresses/CIDR blocks
+   * @param {string} [options.expiresAt] - Expiration date (ISO string)
+   * @param {Object} [options.metadata={}] - Additional metadata
+   * @returns {Promise<Object>} Created API key object with plainKey (one-time only)
+   */
   async generateKey(name, systemId, userId, options = {}) {
     const key = uuidv4();
     const hashedKey = await bcrypt.hash(key, 10);
@@ -102,7 +127,13 @@ class ApiKey {
     return { ...created, plainKey: key }; // Return plain key only once
   }
 
-  // Verify an API key
+  /**
+   * Verify an API key against stored hash
+   * @param {string} key - Plain text API key to verify
+   * @param {string} systemId - System ID associated with the key
+   * @returns {Promise<boolean>} True if key is valid and not expired
+   * @note Updates last_used_at timestamp on successful verification
+   */
   async verifyKey(key, systemId) {
     const stmt = this.db.prepare(`
       SELECT id, key, system_id, is_active, expires_at
@@ -136,7 +167,12 @@ class ApiKey {
     return stmt.run(id);
   }
 
-  // Rotate an API key
+  /**
+   * Rotate an existing API key (generate new key, keep same metadata)
+   * @param {number} id - API key ID to rotate
+   * @param {number} userId - User ID performing the rotation (for audit)
+   * @returns {Promise<string>} New plain text API key (one-time only)
+   */
   async rotateKey(id, userId) {
     const key = uuidv4();
     const hashedKey = await bcrypt.hash(key, 10);

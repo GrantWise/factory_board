@@ -59,7 +59,7 @@ class JobCharacteristic {
       SELECT 
         type,
         COUNT(DISTINCT value) as value_count,
-        GROUP_CONCAT(DISTINCT value LIMIT 3) as sample_values,
+        GROUP_CONCAT(DISTINCT value) as sample_values,
         MIN(color) as sample_color
       FROM ${this.table}
       GROUP BY type
@@ -69,26 +69,30 @@ class JobCharacteristic {
 
   // Detect and create characteristics for an order
   detectAndCreateCharacteristics(order) {
-    const characteristics = this.detectCharacteristicsForOrder(order);
-    const created = [];
+    const transaction = this.db.transaction(() => {
+      const characteristics = this.detectCharacteristicsForOrder(order);
+      const created = [];
 
-    for (const char of characteristics) {
-      const existingColors = this.getExistingColorAssignments();
-      const colorAssignment = this.assignColor(char.type, char.value, existingColors);
+      for (const char of characteristics) {
+        const existingColors = this.getExistingColorAssignments();
+        const colorAssignment = this.assignColor(char.type, char.value, existingColors);
 
-      const created_char = this.create({
-        order_id: order.id,
-        type: char.type,
-        value: char.value,
-        display_name: char.display_name,
-        color: colorAssignment,
-        is_system_generated: char.is_system_generated
-      });
+        const created_char = this.create({
+          order_id: order.id,
+          type: char.type,
+          value: char.value,
+          display_name: char.display_name,
+          color: colorAssignment,
+          is_system_generated: char.is_system_generated
+        });
 
-      created.push(created_char);
-    }
+        created.push(created_char);
+      }
 
-    return created;
+      return created;
+    });
+
+    return transaction();
   }
 
   // Detect characteristics for an order based on database-stored patterns

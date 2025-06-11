@@ -122,76 +122,84 @@ class ManufacturingStep {
 
   // Start a manufacturing step
   startStep(stepId, userId) {
-    const now = new Date().toISOString();
+    const transaction = this.db.transaction(() => {
+      const now = new Date().toISOString();
 
-    const result = this.update(stepId, {
-      status: 'in_progress',
-      started_at: now
+      const result = this.update(stepId, {
+        status: 'in_progress',
+        started_at: now
+      });
+
+      // Log the event
+      const step = this.findById(stepId);
+      if (step) {
+        this.db.prepare(`
+          INSERT INTO audit_log (
+            event_type, order_id, user_id, event_data, timestamp
+          ) VALUES (?, ?, ?, ?, ?)
+        `).run(
+          'step_started',
+          step.order_id,
+          userId,
+          JSON.stringify({
+            step_id: stepId,
+            step_number: step.step_number,
+            operation_name: step.operation_name,
+            work_centre_code: step.work_centre_code
+          }),
+          now
+        );
+      }
+
+      return result;
     });
 
-    // Log the event
-    const step = this.findById(stepId);
-    if (step) {
+    return transaction();
+  }
+
+  // Complete a manufacturing step
+  completeStep(stepId, userId, quantityCompleted) {
+    const transaction = this.db.transaction(() => {
+      const step = this.findById(stepId);
+      if (!step) {
+        throw new Error('Step not found');
+      }
+
+      const now = new Date().toISOString();
+      const actualDuration = step.started_at ?
+        Math.round((new Date(now) - new Date(step.started_at)) / (1000 * 60)) : null;
+
+      const result = this.update(stepId, {
+        status: 'complete',
+        completed_at: now,
+        quantity_completed: quantityCompleted,
+        actual_duration_minutes: actualDuration
+      });
+
+      // Log the event
       this.db.prepare(`
         INSERT INTO audit_log (
           event_type, order_id, user_id, event_data, timestamp
         ) VALUES (?, ?, ?, ?, ?)
       `).run(
-        'step_started',
+        'step_completed',
         step.order_id,
         userId,
         JSON.stringify({
           step_id: stepId,
           step_number: step.step_number,
           operation_name: step.operation_name,
-          work_centre_code: step.work_centre_code
+          work_centre_code: step.work_centre_code,
+          quantity_completed: quantityCompleted,
+          actual_duration_minutes: actualDuration
         }),
         now
       );
-    }
 
-    return result;
-  }
-
-  // Complete a manufacturing step
-  completeStep(stepId, userId, quantityCompleted) {
-    const step = this.findById(stepId);
-    if (!step) {
-      throw new Error('Step not found');
-    }
-
-    const now = new Date().toISOString();
-    const actualDuration = step.started_at ?
-      Math.round((new Date(now) - new Date(step.started_at)) / (1000 * 60)) : null;
-
-    const result = this.update(stepId, {
-      status: 'complete',
-      completed_at: now,
-      quantity_completed: quantityCompleted,
-      actual_duration_minutes: actualDuration
+      return result;
     });
 
-    // Log the event
-    this.db.prepare(`
-      INSERT INTO audit_log (
-        event_type, order_id, user_id, event_data, timestamp
-      ) VALUES (?, ?, ?, ?, ?)
-    `).run(
-      'step_completed',
-      step.order_id,
-      userId,
-      JSON.stringify({
-        step_id: stepId,
-        step_number: step.step_number,
-        operation_name: step.operation_name,
-        work_centre_code: step.work_centre_code,
-        quantity_completed: quantityCompleted,
-        actual_duration_minutes: actualDuration
-      }),
-      now
-    );
-
-    return result;
+    return transaction();
   }
 
   // Delete all steps for an order
