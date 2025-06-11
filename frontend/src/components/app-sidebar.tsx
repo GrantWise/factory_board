@@ -54,18 +54,6 @@ const navigationItems = [
     icon: BarChart3,
   },
   {
-    title: "User Management",
-    page: "users",
-    icon: Users,
-    requiresRole: "admin",
-  },
-  {
-    title: "API Keys",
-    page: "api-keys",
-    icon: Key,
-    requiresRole: "admin",
-  },
-  {
     title: "Settings",
     page: "settings",
     icon: Settings,

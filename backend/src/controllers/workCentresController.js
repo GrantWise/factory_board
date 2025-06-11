@@ -71,7 +71,7 @@ class WorkCentresController {
 
       res.status(201).json({
         message: 'Work centre created successfully',
-        workCentre
+        work_centre: workCentre
       });
     } catch (error) {
       next({ status: 400, code: 'CREATION_FAILED', message: error.message });
@@ -119,7 +119,7 @@ class WorkCentresController {
 
       res.json({
         message: 'Work centre updated successfully',
-        workCentre
+        work_centre: workCentre
       });
     } catch (error) {
       next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
@@ -137,6 +137,15 @@ class WorkCentresController {
           status: 404,
           code: 'NOT_FOUND',
           message: 'Work centre not found'
+        });
+      }
+
+      // Check if work centre has any assigned jobs
+      if (workCentre.current_jobs > 0) {
+        return next({
+          status: 409,
+          code: 'HAS_ASSIGNED_JOBS',
+          message: `Cannot delete work centre with ${workCentre.current_jobs} assigned job(s). Please move or complete these jobs first.`
         });
       }
 

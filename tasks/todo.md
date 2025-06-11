@@ -275,24 +275,29 @@ npm run test && npm run dev
 
 ---
 
-### **6. Consolidated Next Steps**
+### **8. Consolidated Next Steps**
 
-**🚨 CURRENT PRIORITY**: Backend Code Quality & Architecture Review - **Phase 4: Enhancement & Testing**
+**🚨 CURRENT PRIORITY**: Frontend User Experience & Critical Bug Fixes - **Phase 3.5.1: Critical Bug Fixes**
 
 **✅ COMPLETED**: 
-- **Phase 1: Critical Fixes** - ESLint issues, logic errors, file cleanup ✅ 
-- **Phase 2: Security & Architecture** - Enhanced security, performance optimizations, database transactions ✅
-- **Phase 3: Documentation & Code Quality** - **COMPLETED WITH METHOD REFACTORING** ✅
+- **Backend Phase 1: Critical Fixes** - ESLint issues, logic errors, file cleanup ✅ 
+- **Backend Phase 2: Security & Architecture** - Enhanced security, performance optimizations, database transactions ✅
+- **Backend Phase 3: Documentation & Code Quality** - **COMPLETED WITH METHOD REFACTORING** ✅
 - Frontend Code Quality Issues resolved successfully ✅
 - API Key System implementation complete ✅
 - Order Management API issues resolved ✅
 - Error Handling Standardization complete ✅
 
-**Next Priority**:
-1.  **IMMEDIATE**: Complete **Backend Phase 4 Enhancement & Testing** (API analytics, performance testing, CI/CD setup)
-2.  **SHORT TERM**: **Frontend optimizations** and **user experience improvements**
-3.  **MEDIUM TERM**: **Advanced monitoring** and **production deployment preparation**
-4.  **LONG TERM**: **Feature expansions** and **integration enhancements**
+**🚨 IN PROGRESS**:
+- **Phase 3.5: Frontend UX & Critical Bug Fixes** - Systematic frontend improvements with critical bug fixes first
+
+**Next Priority Sequence**:
+1. **IMMEDIATE**: **Phase 3.5.1 - Critical Bug Fixes** (work centres not saving, dashboard errors, analytics issues)
+2. **HIGH**: **Phase 3.5.2 - Navigation & Information Architecture** (breadcrumb, menu organization, settings restructure)
+3. **MEDIUM**: **Phase 3.5.3 - Planning Board UX Enhancements** (collapsible legend, scrollable columns, card management)
+4. **MEDIUM**: **Phase 3.5.4 - Orders Management Features** (column filtering, bulk operations, ERP integration prep)
+5. **LOWER**: **Phase 3.5.5 - Display Customization** (TV display options, advanced configuration)
+6. **FUTURE**: **Backend Phase 4 Enhancement & Testing** (API analytics, performance testing, CI/CD setup)
 
 **Major Achievements**:
 - 647 ESLint issues reduced to 0 errors (100% reduction)
@@ -310,3 +315,153 @@ npm run test && npm run dev
 - Replace remaining `any` types with proper interfaces (technical debt)
 - Update UI libraries for React 19 compatibility
 - Add missing hook dependencies for optimal performance
+
+---
+
+### **7. Frontend User Experience & Critical Bug Fixes - Phase 3.5 - 🚨 IN PROGRESS**
+
+**Status**: Comprehensive frontend issues identified requiring systematic UX improvements and critical bug fixes. This phase focuses on production readiness and user experience optimization.
+
+**Critical Issues Identified**:
+* **5 Critical Bugs**: Work centres not saving, dashboard errors, analytics showing wrong data
+* **8 Navigation/UX Issues**: Inconsistent hierarchy, duplicate buttons, poor information architecture  
+* **12 Planning Board Enhancements**: Scrollable columns, collapsible elements, improved drag-and-drop
+* **6 Orders Management Features**: Column filtering, editing capabilities, ERP integration prep
+* **4 Configuration Options**: TV display customization, auto-sync capabilities
+
+#### **Phase 3.5.1: Critical Bug Fixes (Immediate Priority) - 🚨 HIGH**
+
+**Must fix before any UX improvements to ensure system stability**
+
+- [ ] **Work Centres Critical Bugs**:
+  - [ ] Fix Machines field not saving to database (`work-centres-management.tsx`)
+  - [ ] Fix work centre status not updating when making inactive
+  - [ ] Investigate and fix server crash when adding new work centre (Error: npm run start:frontend exited with code 143)
+  - [ ] Fix work centre deletion not refreshing UI automatically
+  - [ ] Add deletion protection for work centres with assigned jobs
+
+- [ ] **Dashboard Data Issues**:
+  - [ ] Fix Recent Activity panel showing "moved to Unknown" for all items
+  - [ ] Investigate data mapping between work centre IDs and names
+
+- [ ] **Analytics Screen Restructuring**:
+  - [ ] Move current API analytics screen to API Management section (valuable for administrators)
+  - [ ] Create new Manufacturing Analytics screen for main navigation
+  - [ ] Design manufacturing KPIs: work centre utilization, job cycle times, throughput metrics
+  - [ ] Fix API key errors in current analytics (will be moved to API Management)
+
+#### **Phase 3.5.2: Navigation & Information Architecture (High Priority) - ⚠️ MEDIUM**
+
+**Improve overall user experience and eliminate UI/UX inconsistencies**
+
+- [ ] **Navigation Restructuring**:
+  - [ ] Fix breadcrumb navigation to allow clicking up levels
+  - [ ] Remove duplicate "View Planning Board" button (keep left menu item only)
+  - [ ] Move API Keys and User Management to Settings submenu
+  - [ ] Create consistent visual hierarchy between settings tabs and main navigation
+  - [ ] Remove green power icon from work centres (unclear purpose)
+
+- [ ] **Settings Organization**:
+  - [ ] Create Settings submenu structure:
+    - [ ] User Settings (existing)
+    - [ ] Characteristic Settings (existing) 
+    - [ ] System Settings (new tab)
+    - [ ] API Management (move API Keys here + API Analytics)
+    - [ ] User Management (move here)
+  - [ ] Ensure consistent tab styling across all settings areas
+
+- [ ] **Analytics Screen Creation**:
+  - [ ] Create new Manufacturing Analytics screen for main navigation
+  - [ ] Design manufacturing KPIs dashboard:
+    - [ ] Work centre utilization rates and efficiency
+    - [ ] Job cycle times and throughput metrics
+    - [ ] Order completion rates and trend analysis
+    - [ ] Resource allocation and bottleneck identification
+  - [ ] Use existing chart components (bar-chart.tsx, line-chart.tsx, pie-chart.tsx)
+  - [ ] Implement real-time data updates via WebSocket
+
+#### **Phase 3.5.3: Planning Board UX Enhancements (Medium Priority) - ⚠️ MEDIUM**
+
+**Improve the core planning board experience without breaking drag-and-drop functionality**
+
+- [ ] **Space Optimization**:
+  - [ ] Make Visual Grouping Legend collapsible or move to popup panel
+  - [ ] Limit maximum card width for better high-resolution display usage
+  - [ ] Implement scrollable columns like TV Display (preserve drag-and-drop)
+
+- [ ] **Card Management**:
+  - [ ] Add collapsible cards functionality (individual card toggle)
+  - [ ] Add "Collapse All" / "Expand All" buttons
+  - [ ] Show only essential info in collapsed state (Order #, Status, Priority, Due Date)
+  - [ ] Increase drop zone size for easier card reordering
+
+- [ ] **Create Order Enhancement**:
+  - [ ] Redesign Create Order popup with tabbed interface:
+    - [ ] Header: Order Number, Stock Code, Description, Priority
+    - [ ] Tab 1: Basic Info (Qty, Work Centre, Due Date) - current fields
+    - [ ] Tab 2: Attributes (all available order characteristics)
+    - [ ] Tab 3: Advanced (additional fields as needed)
+  - [ ] Remove "Add work centre" button (redirects to menu - poor UX)
+
+#### **Phase 3.5.4: Orders Management Features (Medium Priority) - ⚠️ MEDIUM**
+
+**Enhance order management capabilities for better workflow efficiency**
+
+- [ ] **Grid Enhancements**:
+  - [ ] Add filter/sort dropdown to each column header
+  - [ ] Implement single order editing (click to edit selected row)
+  - [ ] Add row selection checkboxes for bulk operations
+
+- [ ] **Bulk Operations**:
+  - [ ] Multi-select orders functionality
+  - [ ] Bulk edit popup for: Priority, Status, Due Date, Attributes
+  - [ ] Bulk status change with validation rules
+
+- [ ] **ERP Integration Preparation**:
+  - [ ] Add "Sync from ERP" button (prepare API endpoint structure)
+  - [ ] Add sync status indicator
+  - [ ] Design auto-sync configuration in Settings
+
+#### **Phase 3.5.5: Display Customization & Advanced Features (Lower Priority) - ⏸️ PENDING**
+
+**Add configuration options for different user preferences and use cases**
+
+- [ ] **TV Display Customization**:
+  - [ ] Add Settings option for number of columns (default: 6)
+  - [ ] Add Settings option for fields to display on cards
+  - [ ] Add color palette selection in Settings
+  - [ ] Ensure customization persists in user preferences
+
+- [ ] **Advanced Configuration**:
+  - [ ] Auto-sync timer configuration (default: 5 minutes)
+  - [ ] Work centre deletion warnings with job count
+  - [ ] Advanced order filtering and saved filter sets
+
+#### **Implementation Strategy & Principles**
+
+**Keep Simple Things Simple**:
+1. **Fix bugs first** - No UX improvements until system is stable
+2. **Progressive enhancement** - Each phase builds on previous stability
+3. **Preserve core functionality** - Never break drag-and-drop or essential features
+4. **User-centered design** - Move rarely-used features (API Keys) to appropriate submenus
+5. **Consistent patterns** - Apply same UI patterns across all settings areas
+
+**Technical Approach**:
+- Investigate work centre bugs using browser dev tools and backend logs
+- Use existing UI components and patterns for consistency
+- Implement collapsible elements with smooth animations
+- Preserve drag-and-drop functionality when adding scrollable columns
+- Use React state management for UI toggles and preferences
+
+**Success Criteria**:
+- All critical bugs resolved and system stable
+- Navigation feels intuitive with logical information hierarchy  
+- Planning board more efficient for high-resolution displays
+- Orders management supports bulk operations effectively
+- Settings organized logically with advanced features accessible but not prominent
+
+**Risk Mitigation**:
+- Test drag-and-drop thoroughly after any planning board changes
+- Backup existing work centre data before fixing save issues
+- Implement changes incrementally with rollback capability
+- User testing at each phase to ensure improvements don't confuse existing users

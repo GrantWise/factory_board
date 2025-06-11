@@ -4,13 +4,16 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CharacteristicSettings } from "@/components/characteristic-settings"
+import { UsersManagement } from "@/components/users-management"
+import { ApiKeysManagement } from "@/components/api-keys-management"
+import { ApiKeysAnalytics } from "@/components/api-keys-analytics"
 import { useAuth } from "@/contexts/auth-context"
 import { userSettingsService } from "@/lib/api-services"
 import type { UserCharacteristicSettings } from "@/types/manufacturing"
-import { Palette, User, Bell } from "lucide-react"
+import { Palette, User, Bell, Key, Users, Settings as SettingsIcon } from "lucide-react"
 
 export function SettingsPage() {
-  const { user } = useAuth()
+  const { user, hasRole } = useAuth()
   const [characteristicSettings, setCharacteristicSettings] = useState<UserCharacteristicSettings>({
     enabled: false,
     enabledTypes: [],
@@ -18,6 +21,9 @@ export function SettingsPage() {
     secondaryCharacteristic: undefined,
     colorAssignment: 'automatic'
   })
+  
+  // Show admin tabs only if user has admin role
+  const isAdmin = hasRole('admin')
 
   // Load user's characteristics settings
   useEffect(() => {
@@ -54,10 +60,10 @@ export function SettingsPage() {
       </div>
 
       <Tabs defaultValue="visual" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-4'}`}>
           <TabsTrigger value="visual" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
-            Visual Settings
+            Visual
           </TabsTrigger>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="h-4 w-4" />
@@ -67,6 +73,22 @@ export function SettingsPage() {
             <Bell className="h-4 w-4" />
             Notifications
           </TabsTrigger>
+          <TabsTrigger value="system" className="flex items-center gap-2">
+            <SettingsIcon className="h-4 w-4" />
+            System
+          </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger value="api-management" className="flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                API Keys
+              </TabsTrigger>
+              <TabsTrigger value="user-management" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Users
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="visual" className="space-y-6">
@@ -150,6 +172,64 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="system" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Settings</CardTitle>
+              <p className="text-sm text-gray-600">
+                Configure system-wide preferences and default values.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium">Default Work Centre Capacity</div>
+                    <div className="text-xs text-gray-500">Default capacity for new work centres</div>
+                  </div>
+                  <div className="text-sm text-gray-500">5 jobs</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium">Auto-refresh Interval</div>
+                    <div className="text-xs text-gray-500">How often to refresh data automatically</div>
+                  </div>
+                  <div className="text-sm text-gray-500">60 seconds</div>
+                </div>
+                <div className="pt-4 text-sm text-gray-500">
+                  System settings will be configurable in a future update.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <>
+            <TabsContent value="api-management" className="space-y-6">
+              <ApiKeysManagement onApiKeyUpdate={async () => {
+                // Refresh callback - could trigger parent refresh if needed
+              }} />
+              
+              <div className="border-t pt-6">
+                <ApiKeysAnalytics />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="user-management" className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold">User Management</h3>
+                <p className="text-sm text-gray-600">
+                  Manage user accounts, roles, and permissions.
+                </p>
+              </div>
+              <UsersManagement onUserUpdate={async () => {
+                // Refresh callback - could trigger parent refresh if needed
+              }} />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   )

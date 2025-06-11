@@ -54,9 +54,9 @@ export function ApiKeysAnalytics() {
     { autoRefresh: 30000 }
   )
 
-  // Fetch usage data
+  // Fetch usage data only for specific keys (not "all")
   const { data: usageData, isLoading: isLoadingUsage } = useApiData<ApiKeyUsage>(
-    () => apiKeysService.getUsage(selectedKey, timeRange),
+    selectedKey !== "all" ? () => apiKeysService.getUsage(selectedKey, timeRange) : undefined,
     [selectedKey, timeRange],
     { autoRefresh: 60000 }
   )
@@ -135,8 +135,45 @@ export function ApiKeysAnalytics() {
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Conditional content based on selected key */}
+      {selectedKey === "all" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>API Key Overview</CardTitle>
+            <CardDescription>Select a specific API key to view detailed analytics</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-center py-8">
+              <Shield className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Select an API Key</h3>
+              <p className="text-gray-600">Choose a specific API key from the dropdown above to view detailed usage analytics and performance metrics.</p>
+            </div>
+            {apiKeys && apiKeys.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-3">Available API Keys</h4>
+                <div className="space-y-2">
+                  {apiKeys.map((key) => (
+                    <div key={key.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="font-medium">{key.name}</div>
+                        <div className="text-sm text-gray-600">{key.description}</div>
+                      </div>
+                      <div className="text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs ${key.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {key.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Total Requests</CardTitle>
@@ -223,6 +260,8 @@ export function ApiKeysAnalytics() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   )
 } 

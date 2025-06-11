@@ -29,7 +29,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, GripVertical, Power, Edit } from "lucide-react"
+import { Plus, Trash2, GripVertical, Edit, Eye, EyeOff, Loader2 } from "lucide-react"
 import type { WorkCentre } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 import { workCentresService } from "@/lib/api-services"
@@ -61,6 +61,8 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingCentre, setEditingCentre] = useState<WorkCentre | null>(null)
   const [draggedCentre, setDraggedCentre] = useState<number | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
 
   const [newCentre, setNewCentre] = useState({
@@ -70,6 +72,30 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
     description: "",
     is_active: true,
   })
+
+  // Sync local state with props when work centres are updated
+  useEffect(() => {
+    setCentres(workCentres)
+  }, [workCentres])
+
+  // Fetch work centres with inactive toggle
+  const handleToggleInactive = async () => {
+    try {
+      setIsRefreshing(true)
+      const newShowInactive = !showInactive
+      setShowInactive(newShowInactive)
+      
+      const response = await workCentresService.getAll(newShowInactive)
+      setCentres(response.work_centres)
+      
+      toast.success(newShowInactive ? 'Showing all work centres' : 'Showing active work centres only')
+    } catch (error: unknown) {
+      const err = error as { error?: string; message?: string }
+      toast.error(err.error || err.message || 'Failed to refresh work centres')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   /**
    * Creates a new work centre via API
@@ -155,7 +181,10 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
         }
       }
       
-      onWorkCentreUpdate?.() // Trigger refresh
+      // Refresh data with current inactive toggle state
+      const refreshResponse = await workCentresService.getAll(showInactive)
+      setCentres(refreshResponse.work_centres)
+      
       setIsAddDialogOpen(false)
       setNewCentre({ name: "", capacity: 5, machines: "", description: "", is_active: true })
       toast.success('Work centre created successfully')
@@ -296,7 +325,10 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
         }
       }
 
-      onWorkCentreUpdate?.() // Trigger refresh from API
+      // Refresh data with current inactive toggle state
+      const refreshResponse = await workCentresService.getAll(showInactive)
+      setCentres(refreshResponse.work_centres)
+      
       setEditingCentre(null)
       setNewCentre({ name: "", capacity: 5, machines: "", description: "", is_active: true })
       toast.success('Work centre updated successfully')
@@ -339,7 +371,10 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
 
       await workCentresService.delete(centreId)
 
-      onWorkCentreUpdate?.() // Trigger refresh from API
+      // Refresh data with current inactive toggle state
+      const refreshResponse = await workCentresService.getAll(showInactive)
+      setCentres(refreshResponse.work_centres)
+      
       toast.success('Work centre deleted successfully')
     } catch (error: unknown) {
       const err = error as { error?: string }
@@ -368,7 +403,10 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
 
       await workCentresService.update(centreId, updates)
 
-      onWorkCentreUpdate?.() // Trigger refresh from API
+      // Refresh data with current inactive toggle state
+      const response = await workCentresService.getAll(showInactive)
+      setCentres(response.work_centres)
+      
       toast.success(`Work centre ${newIsActive ? 'activated' : 'deactivated'} successfully`)
     } catch (error: unknown) {
       const err = error as { error?: string }
@@ -416,7 +454,8 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
     }))
 
     setCentres(updatedCentres)
-    onWorkCentreUpdate?.()
+    // Note: For drag reordering, we keep the local state as-is since the order change
+    // doesn't affect the active/inactive status, so no need to refetch from API
     setDraggedCentre(null)
   }
 
@@ -429,78 +468,102 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
           <h2 className="text-2xl font-bold text-primary-blue">Work Centres Management</h2>
           <p className="text-gray-600">Configure and manage your manufacturing work centres</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Work Centre
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Work Centre</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Work Centre Name</Label>
-                <Input
-                  id="name"
-                  value={newCentre.name}
-                  onChange={(e) => setNewCentre({ ...newCentre, name: e.target.value })}
-                  placeholder="e.g., Cutting, Assembly"
-                  maxLength={50}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="capacity">Capacity (Max Jobs)</Label>
-                <Input
-                  id="capacity"
-                  type="number"
-                  value={newCentre.capacity}
-                  onChange={(e) => setNewCentre({ ...newCentre, capacity: Number.parseInt(e.target.value) || 5 })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  value={newCentre.description}
-                  onChange={(e) => setNewCentre({ ...newCentre, description: e.target.value })}
-                  placeholder="Enter work centre description"
-                />
-              </div>
-              <div>
-                <Label htmlFor="machines">Machines (comma-separated)</Label>
-                <Input
-                  id="machines"
-                  value={newCentre.machines}
-                  onChange={(e) => setNewCentre({ ...newCentre, machines: e.target.value })}
-                  placeholder="e.g., CUT-01, CUT-02"
-                />
-              </div>
-              <div>
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={newCentre.is_active ? "active" : "inactive"}
-                  onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, is_active: value === "active" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleAddCentre} className="w-full">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={handleToggleInactive}
+            disabled={isRefreshing}
+            className="flex items-center gap-2"
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : showInactive ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            {showInactive ? 'Hide Inactive' : 'Show Inactive'}
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
                 Add Work Centre
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Work Centre</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Work Centre Name</Label>
+                  <Input
+                    id="name"
+                    value={newCentre.name}
+                    onChange={(e) => setNewCentre({ ...newCentre, name: e.target.value })}
+                    placeholder="e.g., Cutting, Assembly"
+                    maxLength={50}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="capacity">Capacity (Max Jobs)</Label>
+                  <Input
+                    id="capacity"
+                    type="number"
+                    value={newCentre.capacity}
+                    onChange={(e) => setNewCentre({ ...newCentre, capacity: Number.parseInt(e.target.value) || 5 })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    value={newCentre.description}
+                    onChange={(e) => setNewCentre({ ...newCentre, description: e.target.value })}
+                    placeholder="Enter work centre description"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="machines">Machines (comma-separated)</Label>
+                  <Input
+                    id="machines"
+                    value={newCentre.machines}
+                    onChange={(e) => setNewCentre({ ...newCentre, machines: e.target.value })}
+                    placeholder="e.g., CUT-01, CUT-02"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={newCentre.is_active ? "active" : "inactive"}
+                    onValueChange={(value: "active" | "inactive") => setNewCentre({ ...newCentre, is_active: value === "active" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleAddCentre} className="w-full">
+                  Add Work Centre
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {showInactive && (
+        <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-md border border-amber-200">
+          <Eye className="h-4 w-4" />
+          <span>Showing all work centres including inactive ones</span>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sortedCentres.map((centre) => (
@@ -508,7 +571,7 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
             key={centre.id}
             className={cn(
               "transition-all duration-200 hover:shadow-md",
-              !centre.is_active && "opacity-60",
+              !centre.is_active && "opacity-60 border-red-200 bg-red-50",
               draggedCentre === centre.id && "opacity-50 rotate-1",
             )}
             draggable
@@ -530,9 +593,10 @@ export function WorkCentresManagement({ workCentres, onWorkCentreUpdate }: WorkC
                     variant="ghost"
                     size="sm"
                     onClick={() => handleToggleStatus(centre.id)}
-                    className="h-6 w-6 p-0"
+                    className="h-auto w-auto px-2 py-1 text-xs"
+                    title={centre.is_active ? "Deactivate work centre" : "Activate work centre"}
                   >
-                    <Power className={cn("h-3 w-3", centre.is_active ? "text-green-600" : "text-gray-400")} />
+                    {centre.is_active ? "Active" : "Inactive"}
                   </Button>
                   <Button
                     variant="ghost"

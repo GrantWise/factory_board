@@ -293,6 +293,11 @@ export const analyticsService = {
     const endpoint = period ? `/analytics/production?period=${period}` : '/analytics/production';
     return api.get(endpoint);
   },
+
+  getRecentActivity: async (limit?: number): Promise<{ recent_activity: any[]; generated_at: string }> => {
+    const endpoint = limit ? `/analytics/recent-activity?limit=${limit}` : '/analytics/recent-activity';
+    return api.get(endpoint);
+  },
 };
 
 // Users services (admin only)

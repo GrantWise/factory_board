@@ -402,6 +402,30 @@ class AnalyticsController {
       next({ status: 500, code: 'PRODUCTION_SUMMARY_FAILED', message: error.message });
     }
   }
+
+  /**
+   * Get recent activity from audit logs for dashboard display
+   * @route GET /api/analytics/recent-activity
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Query parameters
+   * @param {number} [req.query.limit=10] - Number of activity entries to return
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with recent activity data
+   */
+  async getRecentActivity(req, res, next) {
+    try {
+      const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+      const recentActivity = AuditLog.getRecentActivity(limit);
+
+      res.json({
+        recent_activity: recentActivity,
+        generated_at: new Date().toISOString()
+      });
+    } catch (error) {
+      next({ status: 500, code: 'RECENT_ACTIVITY_FETCH_FAILED', message: error.message });
+    }
+  }
 }
 
 module.exports = new AnalyticsController();

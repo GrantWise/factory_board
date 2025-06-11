@@ -88,5 +88,15 @@ router.get('/production-summary',
   AnalyticsController.getProductionSummary
 );
 
+/**
+ * GET /api/analytics/recent-activity
+ * Returns recent activity from audit logs for dashboard display.
+ * Requires 'analytics:read' permission.
+ */
+router.get('/recent-activity',
+  requirePermission('analytics:read'),
+  AnalyticsController.getRecentActivity
+);
+
 // Export the router to be used in the main app
 module.exports = router;

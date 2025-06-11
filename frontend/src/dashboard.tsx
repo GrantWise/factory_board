@@ -22,7 +22,6 @@ import { DashboardOverview } from "@/components/dashboard-overview"
 import { PlanningBoard } from "@/components/planning-board"
 import { OrdersTable } from "@/components/orders-table"
 import { WorkCentresManagement } from "@/components/work-centres-management"
-import { UsersManagement } from "@/components/users-management"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -40,8 +39,7 @@ import type { DashboardMetrics } from "@/types/manufacturing"
 import { Loader2, Sun, Moon, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
-import { ApiKeysManagement } from "@/components/api-keys-management"
-import { ApiKeysAnalytics } from "@/components/api-keys-analytics"
+import { ManufacturingAnalytics } from "@/components/manufacturing-analytics"
 import { SettingsPage } from "@/components/settings-page"
 import type { ManufacturingOrder } from "@/types/manufacturing"
 
@@ -257,10 +255,6 @@ export default function Dashboard() {
         return "Orders Management"
       case "analytics":
         return "Analytics"
-      case "users":
-        return "User Management"
-      case "api-keys":
-        return "API Keys"
       case "settings":
         return "Settings"
       default:
@@ -288,7 +282,7 @@ export default function Dashboard() {
     
     switch (currentPage) {
       case "dashboard":
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} workCentres={workCentres} onNavigate={setCurrentPage} />
       case "planning":
         return <PlanningBoard 
           orders={orders} 
@@ -304,29 +298,11 @@ export default function Dashboard() {
       case "orders":
         return <OrdersTable orders={orders} workCentres={workCentres} />
       case "analytics":
-        return <ApiKeysAnalytics />
-      case "users":
-        if (!hasRole("admin")) {
-          return (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-gray-500">Access denied. Admin role required.</p>
-            </div>
-          )
-        }
-        return <UsersManagement />
-      case "api-keys":
-        if (!hasRole("admin")) {
-          return (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-gray-500">Access denied. Admin role required.</p>
-            </div>
-          )
-        }
-        return <ApiKeysManagement />
+        return <ManufacturingAnalytics />
       case "settings":
         return <SettingsPage />
       default:
-        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
+        return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} workCentres={workCentres} onNavigate={setCurrentPage} />
     }
   }
 
@@ -340,7 +316,12 @@ export default function Dashboard() {
           <Breadcrumb>
             <BreadcrumbList className="text-sidebar-foreground">
               <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="#" className="text-sidebar-foreground/70 hover:text-sidebar-foreground">Manufacturing</BreadcrumbLink>
+                <BreadcrumbLink 
+                  onClick={() => setCurrentPage("dashboard")} 
+                  className="text-sidebar-foreground/70 hover:text-sidebar-foreground cursor-pointer"
+                >
+                  Manufacturing
+                </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block text-sidebar-foreground/50" />
               <BreadcrumbItem>

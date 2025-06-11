@@ -201,6 +201,58 @@ class AuditLog {
     return result.count;
   }
 
+  // Get recent activity for dashboard
+  getRecentActivity(limit = 10) {
+    const entries = this.db.prepare(`
+      SELECT 
+        al.*,
+        u.username,
+        mo.order_number,
+        wc_from.name as from_work_centre_name,
+        wc_to.name as to_work_centre_name
+      FROM ${this.table} al
+      LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN manufacturing_orders mo ON al.order_id = mo.id
+      LEFT JOIN work_centres wc_from ON al.from_work_centre_id = wc_from.id
+      LEFT JOIN work_centres wc_to ON al.to_work_centre_id = wc_to.id
+      WHERE al.event_type IN ('order_moved', 'order_created', 'order_completed', 'order_status_changed')
+      ORDER BY al.timestamp DESC
+      LIMIT ?
+    `).all(limit);
+
+    // Parse event_data JSON and format for frontend
+    return entries.map(entry => {
+      if (entry.event_data) {
+        try {
+          entry.event_data = JSON.parse(entry.event_data);
+        } catch (e) {
+          // Keep as string if JSON parse fails
+        }
+      }
+
+      // Calculate relative time
+      const now = new Date();
+      const entryTime = new Date(entry.timestamp);
+      const diffMinutes = Math.floor((now - entryTime) / (1000 * 60));
+
+      let timeAgo;
+      if (diffMinutes < 1) {
+        timeAgo = 'Just now';
+      } else if (diffMinutes < 60) {
+        timeAgo = `${diffMinutes}m ago`;
+      } else if (diffMinutes < 1440) {
+        timeAgo = `${Math.floor(diffMinutes / 60)}h ago`;
+      } else {
+        timeAgo = `${Math.floor(diffMinutes / 1440)}d ago`;
+      }
+
+      return {
+        ...entry,
+        time_ago: timeAgo
+      };
+    });
+  }
+
   // Get analytics data from audit logs
   getAnalytics(filters = {}) {
     const fromDate = filters.from_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
