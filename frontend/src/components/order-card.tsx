@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Package, Wrench, Lock } from "lucide-react"
-import type { ManufacturingOrder } from "@/types/manufacturing"
+import type { ManufacturingOrder, UserCharacteristicSettings } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 
 interface OrderCardProps {
@@ -12,10 +12,33 @@ interface OrderCardProps {
   isLocked?: boolean
   lockedBy?: string
   onClick?: () => void
+  characteristicSettings?: UserCharacteristicSettings
 }
 
-export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick }: OrderCardProps) {
+export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick, characteristicSettings }: OrderCardProps) {
   const completionPercentage = (order.quantity_completed / order.quantity_to_make) * 100
+  
+  // Get characteristics for visual display
+  const characteristics = order.job_characteristics || []
+  const primaryChar = characteristics.find(c => 
+    c.type === characteristicSettings?.primaryCharacteristic
+  )
+  const secondaryChar = characteristics.find(c => 
+    c.type === characteristicSettings?.secondaryCharacteristic
+  )
+  
+  const showCharacteristics = characteristicSettings?.enabled && (primaryChar || secondaryChar)
+  
+  // Debug logging (only for first few orders to avoid spam)
+  if (order.id <= 17) {
+    console.log(`DEBUG OrderCard ${order.order_number}:`, {
+      characteristicsSettings: characteristicSettings,
+      characteristics: characteristics,
+      primaryChar: primaryChar,
+      secondaryChar: secondaryChar,
+      showCharacteristics: showCharacteristics
+    })
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -68,8 +91,31 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick }: Or
         isDragging && "opacity-50 rotate-1 shadow-lg",
         isLocked && "opacity-60 cursor-not-allowed border-red-300 bg-red-50",
       )}
+      style={{
+        // Primary characteristic as card background tint
+        backgroundColor: primaryChar ? `${primaryChar.color}08` : undefined
+      }}
     >
-      <CardContent className="p-4 space-y-3">
+      {/* Primary characteristic color stripe at top */}
+      {showCharacteristics && primaryChar && (
+        <div 
+          className="h-2 w-full rounded-t-md"
+          style={{ backgroundColor: primaryChar.color }}
+        />
+      )}
+      
+      {/* Secondary characteristic color band on left edge */}
+      {showCharacteristics && secondaryChar && (
+        <div 
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-md"
+          style={{ backgroundColor: secondaryChar.color }}
+        />
+      )}
+      
+      <CardContent className={cn(
+        "p-4 space-y-3",
+        showCharacteristics && secondaryChar && "ml-1" // Add margin if secondary char band is shown
+      )}>
         {/* Header with Order Number and Status */}
         <div className="flex items-start justify-between">
           <h3 
@@ -133,6 +179,37 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick }: Or
           <span className="text-gray-600">Op:</span>
           <span className="font-medium text-gray-900">{order.current_operation}</span>
         </div>
+
+        {/* Characteristic badges (when enabled) */}
+        {showCharacteristics && (primaryChar || secondaryChar) && (
+          <div className="flex gap-1 flex-wrap">
+            {primaryChar && (
+              <Badge 
+                variant="secondary" 
+                className="text-xs"
+                style={{ 
+                  backgroundColor: `${primaryChar.color}20`,
+                  color: primaryChar.color,
+                  borderColor: primaryChar.color
+                }}
+              >
+                {primaryChar.display_name || primaryChar.value}
+              </Badge>
+            )}
+            {secondaryChar && (
+              <Badge 
+                variant="outline" 
+                className="text-xs"
+                style={{ 
+                  borderColor: secondaryChar.color,
+                  color: secondaryChar.color
+                }}
+              >
+                {secondaryChar.display_name || secondaryChar.value}
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* Time indicator */}
         <div className="flex items-center gap-1 text-xs text-gray-500">

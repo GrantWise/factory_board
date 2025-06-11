@@ -1,62 +1,81 @@
 # CLAUDE.md
 
-This is a Next.js 15 frontend with Python backend application using TypeScript, Tailwind CSS v4, and shadcn/ui.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+This is a manufacturing planning board system with a Next.js 15 frontend and Node.js/Express backend using TypeScript, Tailwind CSS, and shadcn/ui components.
 
 ## Commands
 
+### Root Level (Monorepo)
+- `npm run dev` - Start both frontend (port 3000) and backend (port 3001)
+- `npm run install:all` - Install dependencies for all workspaces
+- `npm run build` - Build both frontend and backend
+- `npm run clean` - Remove all node_modules
+
 ### Frontend (Next.js)
-- `npm run dev` - Start development server on http://localhost:3000
-- `npm run build` - Build production bundle
-- `npm run lint` - Run ESLint and type check
+- `cd frontend && npm run dev` - Start development server on port 3000
+- `cd frontend && npm run build` - Build production bundle
+- `cd frontend && npm run lint` - Run ESLint and TypeScript checks
 - `npx shadcn@latest add [component]` - Add shadcn/ui components
 
-### Backend (Python)
-- `python -m uvicorn main:app --reload` - Start FastAPI server
-- `black . && isort .` - Format Python code
-- `pylint **/*.py` - Lint Python code
-- `radon cc . --min B` - Check code complexity (max CC 10)
-- `pytest` - Run Python tests
+### Backend (Node.js/Express)
+- `cd backend && npm run dev` - Start development server on port 3001
+- `cd backend && npm run migrate` - Run database migrations
+- `cd backend && npm run seed` - Seed database with sample data
+- `cd backend && npm test` - Run Jest tests
+- `cd backend && npm run lint` - Run ESLint
 
 ## Architecture
 
-**Frontend:**
-- `src/app/` - Next.js App Router pages and layouts
-- `src/components/` - React components (shadcn/ui + custom)
-- `src/lib/` - Utilities and API client
-- `@/*` maps to `./src/*`
+**Frontend** (`frontend/src/`):
+- `app/` - Next.js App Router pages and layouts
+- `components/` - React components (shadcn/ui + custom manufacturing components)
+- `lib/` - API services, utilities, and error handling
+- `types/` - TypeScript type definitions for manufacturing domain
+- `contexts/` - React contexts (auth, websocket)
+- `hooks/` - Custom React hooks
 
-**Backend:**
-- `app/` - FastAPI application
-- `app/models/` - Pydantic models and database schemas
-- `app/routers/` - API route handlers
-- `app/services/` - Business logic
+**Backend** (`backend/src/`):
+- `controllers/` - Route handlers for REST API endpoints
+- `models/` - Database models (SQLite with better-sqlite3)
+- `middleware/` - Authentication, validation, error handling
+- `routes/` - Express route definitions
+- `services/` - Business logic and WebSocket handling
+- `utils/` - Database utilities and logging
+
+**Key Features:**
+- JWT authentication with role-based access (admin, scheduler, viewer)
+- Real-time updates via WebSocket (Socket.IO)
+- Manufacturing order management with drag-and-drop kanban board
+- Work centre management and analytics
+- API key management for external integrations
+- Comprehensive audit logging
 
 ## Code Standards
 
 ### TypeScript/React
 - Use TypeScript strict mode
 - Functional components with hooks
-- Use Tailwind CSS utilities, avoid custom CSS
-- **IMPORTANT**: Always run `npm run lint` before committing
+- shadcn/ui components with Tailwind CSS utilities
+- **IMPORTANT**: Always run `npm run lint` in frontend/ before committing
 
-### Python
-- **IMPORTANT**: Use `black` (88 char line length) and `isort` for formatting
-- **IMPORTANT**: Maintain pylint score above 8.0/10
-- **IMPORTANT**: Keep cyclomatic complexity below 10 (radon CC rating A-B)
-- Use FastAPI with Pydantic models
-- Keep functions under 15 lines
-- Type hints required for all functions
+### Node.js/Express
+- Use modern JavaScript with CommonJS modules
+- SQLite database with normalized schema
+- Express middleware pattern for route handling
+- **IMPORTANT**: Always run `npm run lint` in backend/ before committing
+- Include tests for new API endpoints
 
-## Project Structure
-```
-/
-├── src/           # Next.js frontend
-├── app/           # Python FastAPI backend
-├── package.json   # Frontend dependencies
-└── requirements.txt # Python dependencies
-```
+## Database
 
-## Git Workflow
-- Feature branches from `main`
-- Run both `npm run lint` and `pylint` before commits
-- Include tests for new features
+- SQLite database located at `backend/database/factory_board.db`
+- Migrations in `backend/database/migrate.js`
+- Sample data seeding in `backend/database/seed.js`
+- Key tables: users, manufacturing_orders, work_centres, audit_logs
+
+## Authentication
+
+Sample users for development:
+- **admin** / password123 (full access)
+- **scheduler1** / password123 (order management)  
+- **viewer1** / password123 (read-only)

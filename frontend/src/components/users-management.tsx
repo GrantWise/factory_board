@@ -67,31 +67,25 @@ const initialFormData: UserFormData = {
   is_active: true
 }
 
-// Role definitions with permissions and styling
+// Role definitions with permissions and styling (matches backend)
 const ROLES = {
   admin: {
     name: 'Administrator',
     description: 'Full system access and user management',
     color: 'bg-red-100 text-red-800',
-    permissions: ['all']
+    permissions: ['users:read', 'users:write', 'users:delete', 'work_centres:read', 'work_centres:write', 'work_centres:delete', 'orders:read', 'orders:write', 'orders:delete', 'orders:move', 'analytics:read', 'settings:write', 'audit:read']
   },
-  manager: {
-    name: 'Manager',
+  scheduler: {
+    name: 'Scheduler',
     description: 'Order and work centre management',
     color: 'bg-blue-100 text-blue-800',
-    permissions: ['orders:write', 'work_centres:write', 'orders:read', 'work_centres:read']
-  },
-  operator: {
-    name: 'Operator',
-    description: 'Order updates and progress tracking',
-    color: 'bg-green-100 text-green-800',
-    permissions: ['orders:write', 'orders:read', 'work_centres:read']
+    permissions: ['work_centres:read', 'orders:read', 'orders:write', 'orders:move', 'analytics:read']
   },
   viewer: {
     name: 'Viewer',
     description: 'Read-only access to orders and work centres',
     color: 'bg-gray-100 text-gray-800',
-    permissions: ['orders:read', 'work_centres:read']
+    permissions: ['work_centres:read', 'orders:read', 'analytics:read']
   }
 } as const
 
@@ -260,7 +254,7 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
       const updates = {
         username: formData.username.trim(),
         email: formData.email.trim(),
-        role: formData.role,
+        role: formData.role as "admin" | "scheduler" | "viewer",
         first_name: formData.first_name.trim() || undefined,
         last_name: formData.last_name.trim() || undefined,
         is_active: formData.is_active,
@@ -572,8 +566,8 @@ export function UsersManagement({ onUserUpdate }: UsersManagementProps) {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">{users.filter(u => u.role === 'operator').length}</div>
-            <div className="text-sm text-gray-600">Operators</div>
+            <div className="text-2xl font-bold">{users.filter(u => u.role === 'scheduler').length}</div>
+            <div className="text-sm text-gray-600">Schedulers</div>
           </CardContent>
         </Card>
       </div>

@@ -27,7 +27,7 @@ export interface ApiKeyUpdate {
   is_active?: boolean
   rate_limit?: number
   ip_whitelist?: string[]
-  expires_at?: string
+  expires_at?: string | null
   metadata?: Record<string, any>
 }
 

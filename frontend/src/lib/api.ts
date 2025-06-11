@@ -96,7 +96,7 @@ class ApiClient {
 
       return data;
     } catch (error) {
-      console.error('[API] Request failed:', error);
+      console.error('[API] Request failed:', JSON.stringify(error, null, 2));
       if (error instanceof TypeError) {
         // Network error
         throw {

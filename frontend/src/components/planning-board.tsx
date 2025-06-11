@@ -39,12 +39,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { OrderCard } from "@/components/order-card"
 import { OnlineUsersIndicator } from "@/components/online-users-indicator"
+import { CharacteristicLegend } from "@/components/characteristic-legend"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { workCentresService, ordersService } from "@/lib/api-services"
+import { workCentresService, ordersService, userSettingsService } from "@/lib/api-services"
 import { notify } from "@/lib/notifications"
 import { type AppError } from "@/lib/error-handling"
 import { useAuth } from "@/contexts/auth-context"
-import type { ManufacturingOrder, WorkCentre } from "@/types/manufacturing"
+import type { ManufacturingOrder, WorkCentre, UserCharacteristicSettings, JobCharacteristic } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
 import {
   draggable,
@@ -200,7 +201,8 @@ function DraggableOrderCard({
   index,
   isDragging, 
   onDragStart,
-  onClick
+  onClick,
+  characteristicSettings
 }: { 
   order: ManufacturingOrder
   columnId: number
@@ -208,6 +210,7 @@ function DraggableOrderCard({
   isDragging: boolean
   onDragStart: (order: ManufacturingOrder) => void 
   onClick?: (order: ManufacturingOrder) => void
+  characteristicSettings?: UserCharacteristicSettings
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   
@@ -244,6 +247,7 @@ function DraggableOrderCard({
         isDragging={isDragging} 
         isLocked={false} 
         onClick={onClick ? () => onClick(order) : undefined}
+        characteristicSettings={characteristicSettings}
       />
     </div>
   )
@@ -332,6 +336,17 @@ function MainPlanningBoard({
   const [selectedOrder, setSelectedOrder] = useState<ManufacturingOrder | null>(null)
   const [draggedOrderId, setDraggedOrderId] = useState<number | null>(null)
   const [draggedWorkCentreId, setDraggedWorkCentreId] = useState<number | null>(null)
+  
+  // Characteristics settings state - ENABLE BY DEFAULT for testing
+  const [characteristicSettings, setCharacteristicSettings] = useState<UserCharacteristicSettings>({
+    enabled: true,
+    enabledTypes: ['customer_order'],
+    primaryCharacteristic: 'customer_order',
+    secondaryCharacteristic: undefined,
+    colorAssignment: 'automatic'
+  })
+  const [allCharacteristics, setAllCharacteristics] = useState<JobCharacteristic[]>([])
+  const [showLegend, setShowLegend] = useState(true)
 
   // Order creation form state
   const [newOrderForm, setNewOrderForm] = useState({
@@ -355,17 +370,69 @@ function MainPlanningBoard({
     setWorkCentreOrder([...workCentres].sort((a, b) => a.display_order - b.display_order))
   }, [workCentres])
 
+  // Load user characteristics settings
+  useEffect(() => {
+    const loadCharacteristicsSettings = async () => {
+      if (!user) {
+        console.log('DEBUG: User not available for loading characteristics settings')
+        return
+      }
+      
+      console.log('DEBUG: Loading characteristics settings for user:', user.id)
+      
+      try {
+        const settings = await userSettingsService.getVisualCharacteristics(user.id)
+        console.log('DEBUG: Loaded characteristics settings:', settings)
+        setCharacteristicSettings(settings)
+      } catch (error) {
+        console.error('Failed to load characteristics settings:', error)
+        console.error('Error details:', error)
+        // Fallback to defaults
+        try {
+          const defaults = await userSettingsService.getDefaults()
+          console.log('DEBUG: Using default settings:', defaults.visual_characteristics)
+          setCharacteristicSettings(defaults.visual_characteristics)
+        } catch (defaultError) {
+          console.error('Failed to load default settings:', defaultError)
+        }
+      }
+    }
+
+    loadCharacteristicsSettings()
+  }, [user])
+
+  // Collect unique characteristics from orders for legend display
+  useEffect(() => {
+    const allChars = orders.flatMap(order => order.job_characteristics || [])
+    
+    // Deduplicate characteristics by type-value combination
+    // Keep the first occurrence of each unique type-value pair
+    const uniqueCharacteristics = allChars.filter((char, index, arr) => 
+      arr.findIndex(c => c.type === char.type && c.value === char.value) === index
+    )
+    
+    setAllCharacteristics(uniqueCharacteristics)
+  }, [orders])
+
   // Order management within columns - with optimistic updates
   const [optimisticOrderMap, setOptimisticOrderMap] = useState<Record<number, number[]>>({})
   const [activeReorderOperations, setActiveReorderOperations] = useState<Set<number>>(new Set())
   
-  const getOrdersForWorkCentre = useCallback((workCentreId: number) => {
-    const allWorkCentreOrders = orders.filter(order => order.current_work_centre_id === workCentreId)
+  const getOrdersForWorkCentre = useCallback((workCentreId: number | null) => {
+    // Handle unassigned orders (workCentreId === null)
+    const allWorkCentreOrders = orders.filter(order => 
+      workCentreId === null 
+        ? (order.current_work_centre_id === null || order.current_work_centre_id === undefined)
+        : order.current_work_centre_id === workCentreId
+    )
+    
+    // Use workCentreId || 0 for unassigned to avoid optimistic map issues
+    const mapKey = workCentreId || 0
     
     // If we have an optimistic order for this work centre, use it
-    if (optimisticOrderMap[workCentreId]) {
+    if (optimisticOrderMap[mapKey]) {
       const orderMap = new Map(allWorkCentreOrders.map(o => [o.id, o]))
-      return optimisticOrderMap[workCentreId]
+      return optimisticOrderMap[mapKey]
         .map(id => orderMap.get(id))
         .filter(Boolean) as ManufacturingOrder[]
     }
@@ -396,7 +463,7 @@ function MainPlanningBoard({
     columnId: number, 
     fromIndex: number, 
     toIndex: number, 
-    insertionPoint?: string
+    _insertionPoint?: string
   ) => {
     if (activeReorderOperations.has(columnId)) {
       console.warn('Reorder operation already in progress for column', columnId);
@@ -445,7 +512,7 @@ function MainPlanningBoard({
     }
   }, [getOrdersForWorkCentre, onOrderReorder]);
 
-  const handleOrderMove = useCallback(async (
+  const _handleOrderMove = useCallback(async (
     orderId: number,
     toWorkCentreId: number,
     newIndex?: number
@@ -457,40 +524,45 @@ function MainPlanningBoard({
         throw new Error('Order not found');
       }
 
-      // Calculate new position if specified
-      const newPosition = newIndex !== undefined ? newIndex + 1 : null;
+      // Handle unassigned column (columnId 0 means unassign)
+      const targetWorkCentreId = toWorkCentreId === 0 ? null : toWorkCentreId;
+      const newPosition = newIndex !== undefined ? newIndex + 1 : undefined;
 
       // Update optimistic state
       setOptimisticOrderMap(prev => {
         const next = { ...prev };
         
-        // Remove from old work centre
-        if (order.current_work_centre_id) {
-          next[order.current_work_centre_id] = 
-            (next[order.current_work_centre_id] || [])
-              .filter(id => id !== orderId);
+        // Remove from old work centre (use mapKey 0 for unassigned)
+        const oldMapKey = order.current_work_centre_id || 0;
+        if (next[oldMapKey]) {
+          next[oldMapKey] = next[oldMapKey].filter(id => id !== orderId);
         }
         
-        // Add to new work centre
-        if (toWorkCentreId) {
-          const targetOrders = getOrdersForWorkCentre(toWorkCentreId);
-          const newOrderIds = [...targetOrders.map(o => o.id)];
-          if (newIndex !== undefined) {
-            newOrderIds.splice(newIndex, 0, orderId);
-          } else {
-            newOrderIds.push(orderId);
-          }
-          next[toWorkCentreId] = newOrderIds;
+        // Add to new work centre (use mapKey 0 for unassigned)
+        const newMapKey = toWorkCentreId;
+        const targetOrders = getOrdersForWorkCentre(targetWorkCentreId);
+        const newOrderIds = [...targetOrders.map(o => o.id)];
+        if (newIndex !== undefined) {
+          newOrderIds.splice(newIndex, 0, orderId);
+        } else {
+          newOrderIds.push(orderId);
         }
+        next[newMapKey] = newOrderIds;
         
         return next;
       });
 
       // Send update to backend
-      await ordersService.move(orderId, toWorkCentreId, 'planning_board_move', newPosition);
+      if (targetWorkCentreId === null) {
+        // Unassign order - update to null work centre
+        await onOrderUpdate?.(orderId, { current_work_centre_id: null });
+      } else {
+        // Assign to work centre
+        await ordersService.move(orderId, targetWorkCentreId, 'planning_board_move', newPosition);
+      }
 
       // Refresh data
-      await onOrderUpdate?.();
+      await onOrderUpdate?.(orderId, {});
     } catch (error) {
       console.error('Failed to move order:', error);
       notify.error(error as AppError, {
@@ -618,9 +690,13 @@ function MainPlanningBoard({
       const orderData = {
         ...newOrderForm,
         quantity_to_make: parseInt(newOrderForm.quantity_to_make),
-        current_work_centre_id: newOrderForm.current_work_centre_id ? parseInt(newOrderForm.current_work_centre_id) : undefined
+        current_work_centre_id: newOrderForm.current_work_centre_id && newOrderForm.current_work_centre_id !== "unassigned" 
+          ? parseInt(newOrderForm.current_work_centre_id) 
+          : undefined,
+        due_date: newOrderForm.due_date || undefined  // Convert empty string to undefined
       }
-
+      
+      // Backend automatically sets created_by from authenticated user
       await ordersService.create(orderData)
       
       // Reset form
@@ -639,10 +715,6 @@ function MainPlanningBoard({
         operation: 'create_order',
         entity: 'order'
       })
-      
-      if (onOrderUpdate) {
-        await onOrderUpdate()
-      }
     } catch (error: unknown) {
       notify.error(error as AppError, {
         operation: 'create_order',
@@ -810,16 +882,19 @@ function MainPlanningBoard({
               <div>
                 <Label htmlFor="current_work_centre_id">Work Centre</Label>
                 <Select 
-                  value={newOrderForm.current_work_centre_id} 
+                  value={newOrderForm.current_work_centre_id || "unassigned"} 
                   onValueChange={(value) => 
-                    setNewOrderForm(prev => ({ ...prev, current_work_centre_id: value }))
+                    setNewOrderForm(prev => ({ 
+                      ...prev, 
+                      current_work_centre_id: value === "unassigned" ? "" : value 
+                    }))
                   }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Unassigned" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {workCentres.filter(wc => wc.is_active).map(wc => (
                       <SelectItem key={wc.id} value={wc.id.toString()}>
                         {wc.name}
@@ -1004,7 +1079,7 @@ function MainPlanningBoard({
                       <div key={index} className="flex items-center justify-between p-2 border rounded">
                         <div>
                           <span className="text-sm font-medium">Step {step.step_number}:</span>
-                          <span className="text-sm ml-2">{step.operation}</span>
+                          <span className="text-sm ml-2">{step.operation_name}</span>
                         </div>
                         <Badge variant={
                           step.status === 'complete' ? 'default' :
@@ -1112,8 +1187,96 @@ function MainPlanningBoard({
         </DialogContent>
       </Dialog>
 
+      {/* Characteristics Legend */}
+      {characteristicSettings.enabled && showLegend && (
+        <CharacteristicLegend
+          characteristics={allCharacteristics}
+          settings={characteristicSettings}
+          onToggleVisibility={() => setShowLegend(!showLegend)}
+          compact={false}
+        />
+      )}
+
       {/* Main Planning Board Grid - Optimized for Tablet */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3 md:gap-4">
+        {/* Unassigned Orders Column */}
+        {(() => {
+          const unassignedOrders = getOrdersForWorkCentre(null)
+          
+          return (
+            <DropZone
+              key="unassigned"
+              columnId={0} // Use 0 for unassigned
+              isActive={true}
+            >
+              <Card className="h-fit min-h-[400px] md:min-h-[500px] transition-all duration-200 touch-manipulation border-dashed border-2 border-amber-300">
+                <CardHeader className="pb-3 bg-amber-50 border-b border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base md:text-lg font-semibold text-amber-800">
+                      Unassigned ({unassignedOrders.length})
+                    </CardTitle>
+                    <div className="text-xs text-amber-600 font-medium">
+                      Drag to assign →
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 p-3 md:p-4">
+                  {unassignedOrders.length === 0 ? (
+                    <div className="text-center py-8 md:py-12 text-muted-foreground border-2 border-dashed rounded-lg transition-colors border-amber-200 touch-manipulation">
+                      <p className="text-sm md:text-base text-amber-700">All orders assigned</p>
+                      <p className="text-xs md:text-sm text-amber-600">Orders need work centres</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 md:space-y-3">
+                      {/* Drop zone at the top */}
+                      <DropZone
+                        columnId={0}
+                        index={0}
+                        isActive={true}
+                        insertionPoint="before"
+                      >
+                        <div className="h-1" />
+                      </DropZone>
+                      
+                      {unassignedOrders.map((order, index) => (
+                        <React.Fragment key={order.id}>
+                          <DropZone
+                            columnId={0}
+                            index={index}
+                            isActive={true}
+                            insertionPoint="replace"
+                          >
+                            <DraggableOrderCard
+                              order={order}
+                              columnId={0}
+                              index={index}
+                              isDragging={draggedOrderId === order.id}
+                              onDragStart={handleOrderDragStart}
+                              onClick={handleOrderClick}
+                              characteristicSettings={characteristicSettings}
+                            />
+                          </DropZone>
+                          
+                          {/* Drop zone after each card */}
+                          <DropZone
+                            columnId={0}
+                            index={index + 1}
+                            isActive={true}
+                            insertionPoint="after"
+                          >
+                            <div className="h-1" />
+                          </DropZone>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </DropZone>
+          )
+        })()}
+
+        {/* Regular Work Centre Columns */}
         {activeWorkCentres.map((workCentre) => {
           const workCentreOrders = getOrdersForWorkCentre(workCentre.id)
           
@@ -1185,6 +1348,7 @@ function MainPlanningBoard({
                               isDragging={draggedOrderId === order.id}
                               onDragStart={handleOrderDragStart}
                               onClick={handleOrderClick}
+                              characteristicSettings={characteristicSettings}
                             />
                           </DropZone>
                           

@@ -1,9 +1,53 @@
+// Job Characteristics Types
+export interface JobCharacteristic {
+  id: number
+  order_id: number
+  type: "customer_order" | "customer" | "material" | "priority" | "part_family" | "custom"
+  value: string
+  color: string
+  display_name?: string
+  is_system_generated: boolean
+  created_at: string
+}
+
+export interface UserCharacteristicSettings {
+  enabled: boolean
+  enabledTypes: string[]
+  primaryCharacteristic?: string
+  secondaryCharacteristic?: string
+  colorAssignment: 'automatic' | 'manual'
+}
+
+// User Settings Types
+export interface UserSetting {
+  id: number
+  user_id: number
+  setting_key: string
+  setting_value: any
+  created_at: string
+  updated_at: string
+}
+
+export interface DefaultUserSettings {
+  visual_characteristics: UserCharacteristicSettings
+  planning_board: {
+    autoRefresh: boolean
+    refreshInterval: number
+    showCompleted: boolean
+  }
+  notifications: {
+    enabled: boolean
+    orderUpdates: boolean
+    systemAlerts: boolean
+  }
+}
+
 // API Response Types (matching backend)
 export interface ManufacturingStep {
   id: number
   step_number: number
   step: string
-  operation: string
+  operation_name: string
   work_centre_id: number
   work_centre_code: string
   work_centre_name: string
@@ -24,7 +68,7 @@ export interface ManufacturingOrder {
   quantity_completed: number
   current_operation?: string
   current_step?: string
-  current_work_centre_id?: number
+  current_work_centre_id: number | null
   work_centre_code?: string
   work_centre_name?: string
   status: "not_started" | "in_progress" | "complete" | "overdue" | "on_hold" | "cancelled"
@@ -37,6 +81,7 @@ export interface ManufacturingOrder {
   created_at?: string
   updated_at?: string
   manufacturing_steps: ManufacturingStep[]
+  job_characteristics?: JobCharacteristic[]
 }
 
 export interface Machine {
@@ -109,6 +154,7 @@ export interface User {
   first_name: string
   last_name: string
   is_active: boolean
+  last_login: string | null
   created_at: string
   updated_at: string
 }
@@ -118,5 +164,48 @@ export interface AuthResponse {
   user: User
   access_token: string
   refresh_token: string
+}
+
+// Characteristics API Response Types
+export interface CharacteristicStats {
+  type: string
+  total_count: number
+  unique_values: number
+  orders_with_characteristic: number
+}
+
+export interface AvailableCharacteristic {
+  type: string
+  name: string
+  description: string
+  icon: string
+  value_count: number
+  sample_values: string
+  sample_color: string
+  detection_patterns: string[]
+  is_system_defined: boolean
+}
+
+export interface CharacteristicsResponse {
+  stats: CharacteristicStats[]
+  available: AvailableCharacteristic[]
+}
+
+// Component Props Types
+export interface OrderCardProps {
+  order: ManufacturingOrder
+  isDragging?: boolean
+  characteristicSettings?: UserCharacteristicSettings
+}
+
+export interface CharacteristicLegendProps {
+  characteristics: JobCharacteristic[]
+  settings: UserCharacteristicSettings
+}
+
+export interface CharacteristicSettingsProps {
+  userId: number
+  settings: UserCharacteristicSettings
+  onSettingsChange: (settings: UserCharacteristicSettings) => void
 }
 

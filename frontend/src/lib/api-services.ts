@@ -8,6 +8,11 @@ import type {
   WorkCentresResponse,
   PlanningBoardResponse,
   DashboardMetrics,
+  JobCharacteristic,
+  UserCharacteristicSettings,
+  UserSetting,
+  DefaultUserSettings,
+  CharacteristicsResponse,
 } from '@/types/manufacturing';
 import type {
   ApiKey,
@@ -338,34 +343,109 @@ export const healthService = {
 // API Key services
 export const apiKeysService = {
   getAll: async (): Promise<ApiKey[]> => {
-    const response = await api.get<ApiKeysResponse>('/api/admin/api-keys');
+    const response = await api.get<ApiKeysResponse>('/admin/api-keys');
     return response.data;
   },
 
   getById: async (id: number): Promise<ApiKey> => {
-    const response = await api.get<ApiKeyResponse>(`/api/admin/api-keys/${id}`);
+    const response = await api.get<ApiKeyResponse>(`/admin/api-keys/${id}`);
     return response.data;
   },
 
   create: async (data: ApiKeyCreate): Promise<ApiKeyCreateResponse> => {
-    return api.post<ApiKeyCreateResponse>('/api/admin/api-keys', data);
+    return api.post<ApiKeyCreateResponse>('/admin/api-keys', data);
   },
 
   update: async (id: number, data: ApiKeyUpdate): Promise<ApiKey> => {
-    const response = await api.put<ApiKeyResponse>(`/api/admin/api-keys/${id}`, data);
+    const response = await api.put<ApiKeyResponse>(`/admin/api-keys/${id}`, data);
     return response.data;
   },
 
   rotate: async (id: number): Promise<ApiKeyRotateResponse> => {
-    return api.post<ApiKeyRotateResponse>(`/api/admin/api-keys/${id}/rotate`);
+    return api.post<ApiKeyRotateResponse>(`/admin/api-keys/${id}/rotate`);
   },
 
   delete: async (id: number): Promise<void> => {
-    await api.delete(`/api/admin/api-keys/${id}`);
+    await api.delete(`/admin/api-keys/${id}`);
   },
 
   getUsage: async (keyId: string, timeRange: string): Promise<ApiKeyUsage> => {
-    const response = await api.get<ApiKeyUsageResponse>(`/api/admin/api-keys/${keyId}/usage?timeRange=${timeRange}`);
+    const response = await api.get<ApiKeyUsageResponse>(`/admin/api-keys/${keyId}/usage?timeRange=${timeRange}`);
     return response.data;
   }
+};
+
+// Job Characteristics services
+export const characteristicsService = {
+  getAll: async (): Promise<CharacteristicsResponse> => {
+    return api.get<CharacteristicsResponse>('/characteristics');
+  },
+
+  getByType: async (type: string): Promise<JobCharacteristic[]> => {
+    return api.get<JobCharacteristic[]>(`/characteristics/types/${type}`);
+  },
+
+  getForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
+    return api.get<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics`);
+  },
+
+  createForOrder: async (orderId: number, characteristicData: {
+    type: string;
+    value: string;
+    color?: string;
+    display_name?: string;
+  }): Promise<JobCharacteristic> => {
+    return api.post<JobCharacteristic>(`/characteristics/orders/${orderId}/characteristics`, characteristicData);
+  },
+
+  update: async (id: number, updates: Partial<JobCharacteristic>): Promise<JobCharacteristic> => {
+    return api.put<JobCharacteristic>(`/characteristics/${id}`, updates);
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/characteristics/${id}`);
+  },
+
+  refreshForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
+    return api.post<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics/refresh`);
+  },
+
+  detectForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
+    return api.post<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics/detect`);
+  },
+};
+
+// User Settings services
+export const userSettingsService = {
+  getAll: async (userId: number): Promise<Record<string, any>> => {
+    return api.get<Record<string, any>>(`/settings/users/${userId}/settings`);
+  },
+
+  get: async (userId: number, key: string): Promise<UserSetting> => {
+    return api.get<UserSetting>(`/settings/users/${userId}/settings/${key}`);
+  },
+
+  set: async (userId: number, key: string, value: any): Promise<UserSetting> => {
+    return api.put<UserSetting>(`/settings/users/${userId}/settings/${key}`, { value });
+  },
+
+  setMultiple: async (userId: number, settings: Record<string, any>): Promise<Record<string, UserSetting>> => {
+    return api.put<Record<string, UserSetting>>(`/settings/users/${userId}/settings`, settings);
+  },
+
+  delete: async (userId: number, key: string): Promise<void> => {
+    await api.delete(`/settings/users/${userId}/settings/${key}`);
+  },
+
+  getVisualCharacteristics: async (userId: number): Promise<UserCharacteristicSettings> => {
+    return api.get<UserCharacteristicSettings>(`/settings/users/${userId}/settings/visual-characteristics`);
+  },
+
+  setVisualCharacteristics: async (userId: number, settings: UserCharacteristicSettings): Promise<UserSetting> => {
+    return api.put<UserSetting>(`/settings/users/${userId}/settings/visual-characteristics`, settings);
+  },
+
+  getDefaults: async (): Promise<DefaultUserSettings> => {
+    return api.get<DefaultUserSettings>('/settings/defaults');
+  },
 };

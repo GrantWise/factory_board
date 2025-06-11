@@ -319,39 +319,29 @@ export function OrdersTable({ orders, workCentres = [] }: OrdersTableProps) {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
-        // Validate and clean the data
-        const cleanedRows = results.data
-          .map((row: any, index: number) => {
-            // Clean and validate each field
-            const cleanedRow = {
-              order_number: row.order_number?.trim(),
-              stock_code: row.stock_code?.trim(),
-              description: row.description?.trim(),
-              quantity_to_make: parseInt(row.quantity_to_make) || 0,
-              current_operation: row.current_operation?.trim(),
-              current_work_centre_id: parseInt(row.current_work_centre_id) || null,
-              status: row.status?.toLowerCase().trim(),
-              priority: row.priority?.toLowerCase().trim(),
-              due_date: row.due_date?.trim(),
-              start_date: row.start_date?.trim()
-            }
-
-            // Validate required fields
-            if (!cleanedRow.order_number) {
-              throw new Error(`Row ${index + 1}: Order number is required`)
-            }
-            if (!cleanedRow.stock_code) {
-              throw new Error(`Row ${index + 1}: Stock code is required`)
-            }
-            if (cleanedRow.quantity_to_make <= 0) {
-              throw new Error(`Row ${index + 1}: Quantity must be greater than 0`)
-            }
-
-            return cleanedRow
-          })
-
-        // Send validated and cleaned rows to backend for processing
         try {
+          // Step 1: Validate CSV headers
+          if (!hasRequiredColumns(results.meta.fields || [])) {
+            throw new Error('CSV file is missing required columns. Required: order_number, stock_code, description, quantity_to_make')
+          }
+
+          // Step 2: Validate and clean each row
+          const cleanedRows: CleanedOrderData[] = []
+          for (let i = 0; i < results.data.length; i++) {
+            const rawRow = results.data[i] as RawOrderData
+            
+            // Validate the row
+            const validationError = validateOrderData(rawRow, i)
+            if (validationError) {
+              throw new Error(validationError)
+            }
+            
+            // Clean and normalize the data
+            const cleanedRow = cleanOrderData(rawRow)
+            cleanedRows.push(cleanedRow)
+          }
+
+          // Step 3: Send validated and cleaned rows to backend for processing
           const response = await ordersService.bulkImport(cleanedRows)
           setImportSummary(response)
           notify.success({

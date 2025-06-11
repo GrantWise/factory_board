@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { LayoutDashboard, Kanban, Package, Factory, BarChart3, Settings, Users, LogOut, ChevronUp } from "lucide-react"
+import { LayoutDashboard, Kanban, Package, Factory, BarChart3, Settings, Users, Key, LogOut, ChevronUp } from "lucide-react"
 import Image from "next/image"
 
 import {
@@ -57,6 +57,12 @@ const navigationItems = [
     title: "User Management",
     page: "users",
     icon: Users,
+    requiresRole: "admin",
+  },
+  {
+    title: "API Keys",
+    page: "api-keys",
+    icon: Key,
     requiresRole: "admin",
   },
   {

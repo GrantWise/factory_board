@@ -42,53 +42,9 @@ import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import { ApiKeysManagement } from "@/components/api-keys-management"
 import { ApiKeysAnalytics } from "@/components/api-keys-analytics"
-import { LayoutDashboard, Kanban, Factory, Package, BarChart3, Users, Key, Settings } from "lucide-react"
+import { SettingsPage } from "@/components/settings-page"
 import type { ManufacturingOrder } from "@/types/manufacturing"
 
-const navigationItems = [
-  {
-    title: "Dashboard",
-    page: "dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Planning Board",
-    page: "planning",
-    icon: Kanban,
-  },
-  {
-    title: "Work Centres",
-    page: "workcentres",
-    icon: Factory,
-  },
-  {
-    title: "Orders Management",
-    page: "orders",
-    icon: Package,
-  },
-  {
-    title: "Analytics",
-    page: "analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "User Management",
-    page: "users",
-    icon: Users,
-    requiresRole: "admin",
-  },
-  {
-    title: "API Keys",
-    page: "api-keys",
-    icon: Key,
-    requiresRole: "admin",
-  },
-  {
-    title: "Settings",
-    page: "settings",
-    icon: Settings,
-  },
-]
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState("dashboard")
@@ -245,7 +201,7 @@ export default function Dashboard() {
       console.log('[Dashboard] Orders refreshed successfully');
       toast.success('Order updated successfully')
     } catch (error: any) {
-      console.error('[Dashboard] Error updating order:', error);
+      console.error('[Dashboard] Error updating order:', JSON.stringify(error, null, 2));
       let errorMessage = 'Failed to update order';
       if (error.status === 401) {
         errorMessage = 'Authentication required. Please log in again.';
@@ -368,11 +324,7 @@ export default function Dashboard() {
         }
         return <ApiKeysManagement />
       case "settings":
-        return (
-          <div className="flex items-center justify-center h-64">
-            <p className="text-gray-500">Settings page coming soon...</p>
-          </div>
-        )
+        return <SettingsPage />
       default:
         return <DashboardOverview metrics={dashboardMetrics} recentOrders={orders} onNavigate={setCurrentPage} />
     }
