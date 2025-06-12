@@ -326,6 +326,10 @@ class ManufacturingOrder {
       fields.push('completion_date = ?');
       values.push(orderData.completion_date);
     }
+    if (orderData.work_centre_position !== undefined) {
+      fields.push('work_centre_position = ?');
+      values.push(orderData.work_centre_position);
+    }
 
     if (fields.length === 0) {
       return this.findById(id);
