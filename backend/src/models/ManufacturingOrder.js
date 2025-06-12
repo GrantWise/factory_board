@@ -315,16 +315,43 @@ class ManufacturingOrder {
       values.push(orderData.priority);
     }
     if (orderData.due_date !== undefined) {
-      fields.push('due_date = ?');
-      values.push(orderData.due_date);
+      const dueDate = orderData.due_date;
+      if (dueDate === null) {
+        fields.push('due_date = ?');
+        values.push(null);
+      } else if (typeof dueDate === 'string') {
+        fields.push('due_date = ?');
+        values.push(dueDate);
+      } else if (dueDate instanceof Date) {
+        fields.push('due_date = ?');
+        values.push(dueDate.toISOString());
+      }
     }
     if (orderData.start_date !== undefined) {
-      fields.push('start_date = ?');
-      values.push(orderData.start_date);
+      const startDate = orderData.start_date;
+      if (startDate === null) {
+        fields.push('start_date = ?');
+        values.push(null);
+      } else if (typeof startDate === 'string') {
+        fields.push('start_date = ?');
+        values.push(startDate);
+      } else if (startDate instanceof Date) {
+        fields.push('start_date = ?');
+        values.push(startDate.toISOString());
+      }
     }
     if (orderData.completion_date !== undefined) {
-      fields.push('completion_date = ?');
-      values.push(orderData.completion_date);
+      const completionDate = orderData.completion_date;
+      if (completionDate === null) {
+        fields.push('completion_date = ?');
+        values.push(null);
+      } else if (typeof completionDate === 'string') {
+        fields.push('completion_date = ?');
+        values.push(completionDate);
+      } else if (completionDate instanceof Date) {
+        fields.push('completion_date = ?');
+        values.push(completionDate.toISOString());
+      }
     }
     if (orderData.work_centre_position !== undefined) {
       fields.push('work_centre_position = ?');
@@ -338,12 +365,19 @@ class ManufacturingOrder {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const stmt = this.db.prepare(`
+    const query = `
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
-    `);
+    `;
 
+    // Parameter count safety check
+    const questionMarks = query.match(/\?/g);
+    if (questionMarks && questionMarks.length !== values.length) {
+      throw new Error(`Parameter count mismatch: ${questionMarks.length} placeholders, ${values.length} values`);
+    }
+
+    const stmt = this.db.prepare(query);
     stmt.run(...values);
     return this.findById(id);
   }

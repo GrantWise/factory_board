@@ -132,6 +132,7 @@ const schemas = {
       description: Joi.string().optional(),
       capacity: Joi.number().integer().min(1).optional(),
       display_order: Joi.number().integer().min(0).optional(),
+      work_centre_position: Joi.number().integer().min(0).optional(),
       is_active: Joi.boolean().optional()
     }),
     reorder: Joi.array().items(

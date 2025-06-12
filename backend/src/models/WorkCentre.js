@@ -140,6 +140,10 @@ class WorkCentre {
       fields.push('display_order = ?');
       values.push(workCentreData.display_order);
     }
+    if (workCentreData.work_centre_position !== undefined) {
+      fields.push('work_centre_position = ?');
+      values.push(workCentreData.work_centre_position);
+    }
     if (workCentreData.is_active !== undefined) {
       fields.push('is_active = ?');
       values.push(workCentreData.is_active ? 1 : 0);
@@ -152,12 +156,19 @@ class WorkCentre {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const stmt = this.db.prepare(`
+    const query = `
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
-    `);
+    `;
 
+    // Parameter count safety check
+    const questionMarks = query.match(/\?/g);
+    if (questionMarks && questionMarks.length !== values.length) {
+      throw new Error(`Parameter count mismatch: ${questionMarks.length} placeholders, ${values.length} values`);
+    }
+
+    const stmt = this.db.prepare(query);
     stmt.run(...values);
     return this.convertBooleans(this.findById(id));
   }
@@ -251,12 +262,19 @@ class WorkCentre {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(machineId);
 
-    const stmt = this.db.prepare(`
+    const query = `
       UPDATE machines
       SET ${fields.join(', ')}
       WHERE id = ?
-    `);
+    `;
 
+    // Parameter count safety check
+    const questionMarks = query.match(/\?/g);
+    if (questionMarks && questionMarks.length !== values.length) {
+      throw new Error(`Parameter count mismatch: ${questionMarks.length} placeholders, ${values.length} values`);
+    }
+
+    const stmt = this.db.prepare(query);
     stmt.run(...values);
     const machine = this.db.prepare('SELECT * FROM machines WHERE id = ?').get(machineId);
     return this.convertBooleans(machine);

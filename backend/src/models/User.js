@@ -110,12 +110,19 @@ class User {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const stmt = this.db.prepare(`
+    const query = `
       UPDATE ${this.table}
       SET ${fields.join(', ')}
       WHERE id = ?
-    `);
+    `;
 
+    // Parameter count safety check
+    const questionMarks = query.match(/\?/g);
+    if (questionMarks && questionMarks.length !== values.length) {
+      throw new Error(`Parameter count mismatch: ${questionMarks.length} placeholders, ${values.length} values`);
+    }
+
+    const stmt = this.db.prepare(query);
     stmt.run(...values);
     return this.findById(id);
   }
