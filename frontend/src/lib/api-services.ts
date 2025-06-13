@@ -391,7 +391,7 @@ export const characteristicsService = {
   },
 
   getForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
-    return api.get<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics`);
+    return api.get<JobCharacteristic[]>(`/orders/${orderId}/characteristics`);
   },
 
   createForOrder: async (orderId: number, characteristicData: {
@@ -400,7 +400,7 @@ export const characteristicsService = {
     color?: string;
     display_name?: string;
   }): Promise<JobCharacteristic> => {
-    return api.post<JobCharacteristic>(`/characteristics/orders/${orderId}/characteristics`, characteristicData);
+    return api.post<JobCharacteristic>(`/orders/${orderId}/characteristics`, characteristicData);
   },
 
   update: async (id: number, updates: Partial<JobCharacteristic>): Promise<JobCharacteristic> => {
@@ -412,11 +412,11 @@ export const characteristicsService = {
   },
 
   refreshForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
-    return api.post<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics/refresh`);
+    return api.post<JobCharacteristic[]>(`/orders/${orderId}/characteristics/refresh`);
   },
 
   detectForOrder: async (orderId: number): Promise<JobCharacteristic[]> => {
-    return api.post<JobCharacteristic[]>(`/characteristics/orders/${orderId}/characteristics/detect`);
+    return api.post<JobCharacteristic[]>(`/orders/${orderId}/characteristics/detect`);
   },
 };
 
