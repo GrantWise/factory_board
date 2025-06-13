@@ -2,9 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Package, Wrench, Lock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Clock, Package, Wrench, Lock, ChevronDown, ChevronUp } from "lucide-react"
 import type { ManufacturingOrder, UserCharacteristicSettings } from "@/types/manufacturing"
 import { cn } from "@/lib/utils"
+import { getStatusBadgeConfig, getProgressBarColor, getDueDays } from "@/lib/order-utils"
 
 interface OrderCardProps {
   order: ManufacturingOrder
@@ -13,9 +15,11 @@ interface OrderCardProps {
   lockedBy?: string
   onClick?: () => void
   characteristicSettings?: UserCharacteristicSettings
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
-export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick, characteristicSettings }: OrderCardProps) {
+export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick, characteristicSettings, isCollapsed = false, onToggleCollapse }: OrderCardProps) {
   const completionPercentage = (order.quantity_completed / order.quantity_to_make) * 100
   
   // Get characteristics for visual display
@@ -28,61 +32,6 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick, char
   )
   
   const showCharacteristics = characteristicSettings?.enabled && (primaryChar || secondaryChar)
-  
-  // Debug logging (only for first few orders to avoid spam)
-  if (order.id <= 17) {
-    console.log(`DEBUG OrderCard ${order.order_number}:`, {
-      characteristicsSettings: characteristicSettings,
-      characteristics: characteristics,
-      primaryChar: primaryChar,
-      secondaryChar: secondaryChar,
-      showCharacteristics: showCharacteristics
-    })
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "not_started":
-        return (
-          <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700 hover:bg-gray-100">
-            Not Started
-          </Badge>
-        )
-      case "in_progress":
-        return <Badge className="text-xs bg-blue-500 hover:bg-blue-500">In Progress</Badge>
-      case "complete":
-        return <Badge className="text-xs bg-green-500 hover:bg-green-500">Complete</Badge>
-      case "overdue":
-        return <Badge className="text-xs bg-red-500 hover:bg-red-500">Delayed</Badge>
-      default:
-        return (
-          <Badge variant="secondary" className="text-xs">
-            Unknown
-          </Badge>
-        )
-    }
-  }
-
-  const getProgressBarColor = (status: string, percentage: number) => {
-    if (status === "overdue") return "bg-red-500"
-    if (status === "complete") return "bg-green-500"
-    if (percentage > 75) return "bg-green-500"
-    if (percentage > 50) return "bg-yellow-500"
-    if (percentage > 25) return "bg-orange-500"
-    return "bg-gray-300"
-  }
-
-  const getDueDays = () => {
-    const today = new Date()
-    const dueDate = new Date(order.due_date || '')
-    const diffTime = dueDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return "Overdue"
-    if (diffDays === 0) return "Due today"
-    if (diffDays === 1) return "Due tomorrow"
-    return `${diffDays} days`
-  }
 
   return (
     <Card
@@ -130,92 +79,133 @@ export function OrderCard({ order, isDragging, isLocked, lockedBy, onClick, char
           >
             {order.order_number}
           </h3>
-          {isLocked ? (
-            <div className="flex items-center gap-1 text-red-600">
-              <Lock className="h-3 w-3" />
-              <span className="text-xs">{lockedBy}</span>
-            </div>
-          ) : (
-            getStatusBadge(order.status)
-          )}
-        </div>
-
-        {/* Description */}
-        <div>
-          <p className="text-sm font-medium text-gray-700">{order.description}</p>
-          <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-            <div className="flex items-center gap-1">
-              <Package className="h-3 w-3" />
-              <span>{order.stock_code}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>
-                {order.quantity_completed} / {order.quantity_to_make}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-600">Progress</span>
-            <span className="font-medium text-gray-900">{Math.round(completionPercentage)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className={cn(
-                "h-2 rounded-full transition-all duration-300",
-                getProgressBarColor(order.status, completionPercentage),
-              )}
-              style={{ width: `${completionPercentage}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Current Operation */}
-        <div className="flex items-center gap-1 text-sm">
-          <Wrench className="h-3 w-3 text-gray-500" />
-          <span className="text-gray-600">Op:</span>
-          <span className="font-medium text-gray-900">{order.current_operation}</span>
-        </div>
-
-        {/* Characteristic badges (when enabled) */}
-        {showCharacteristics && (primaryChar || secondaryChar) && (
-          <div className="flex gap-1 flex-wrap">
-            {primaryChar && (
-              <Badge 
-                variant="secondary" 
-                className="text-xs"
-                style={{ 
-                  backgroundColor: `${primaryChar.color}20`,
-                  color: primaryChar.color,
-                  borderColor: primaryChar.color
-                }}
-              >
-                {primaryChar.display_name || primaryChar.value}
-              </Badge>
+          <div className="flex items-center gap-1">
+            {isLocked ? (
+              <div className="flex items-center gap-1 text-red-600">
+                <Lock className="h-3 w-3" />
+                <span className="text-xs">{lockedBy}</span>
+              </div>
+            ) : (
+              (() => {
+                const config = getStatusBadgeConfig(order.status)
+                return (
+                  <Badge variant={config.variant} className={config.className}>
+                    {config.label}
+                  </Badge>
+                )
+              })()
             )}
-            {secondaryChar && (
-              <Badge 
-                variant="outline" 
-                className="text-xs"
-                style={{ 
-                  borderColor: secondaryChar.color,
-                  color: secondaryChar.color
+            {onToggleCollapse && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleCollapse()
                 }}
+                className="h-6 w-6 p-0 ml-1"
+                title={isCollapsed ? "Expand card" : "Collapse card"}
               >
-                {secondaryChar.display_name || secondaryChar.value}
-              </Badge>
+                {isCollapsed ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+              </Button>
             )}
           </div>
+        </div>
+
+        {/* Essential info in collapsed state: Priority and Due Date */}
+        {isCollapsed ? (
+          <div className="flex items-center justify-between text-sm">
+            <Badge variant={
+              order.priority === 'high' ? 'destructive' :
+              order.priority === 'medium' ? 'secondary' : 'outline'
+            } className="text-xs">
+              {order.priority}
+            </Badge>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Clock className="h-3 w-3" />
+              <span>Due: {getDueDays(order.due_date)}</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Description */}
+            <div>
+              <p className="text-sm font-medium text-gray-700">{order.description}</p>
+              <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <Package className="h-3 w-3" />
+                  <span>{order.stock_code}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span>
+                    {order.quantity_completed} / {order.quantity_to_make}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Progress</span>
+                <span className="font-medium text-gray-900">{Math.round(completionPercentage)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={cn(
+                    "h-2 rounded-full transition-all duration-300",
+                    getProgressBarColor(order.status, completionPercentage),
+                  )}
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Current Operation */}
+            <div className="flex items-center gap-1 text-sm">
+              <Wrench className="h-3 w-3 text-gray-500" />
+              <span className="text-gray-600">Op:</span>
+              <span className="font-medium text-gray-900">{order.current_operation}</span>
+            </div>
+
+            {/* Characteristic badges (when enabled) */}
+            {showCharacteristics && (primaryChar || secondaryChar) && (
+              <div className="flex gap-1 flex-wrap">
+                {primaryChar && (
+                  <Badge 
+                    variant="secondary" 
+                    className="text-xs"
+                    style={{ 
+                      backgroundColor: `${primaryChar.color}20`,
+                      color: primaryChar.color,
+                      borderColor: primaryChar.color
+                    }}
+                  >
+                    {primaryChar.display_name || primaryChar.value}
+                  </Badge>
+                )}
+                {secondaryChar && (
+                  <Badge 
+                    variant="outline" 
+                    className="text-xs"
+                    style={{ 
+                      borderColor: secondaryChar.color,
+                      color: secondaryChar.color
+                    }}
+                  >
+                    {secondaryChar.display_name || secondaryChar.value}
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Time indicator */}
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Clock className="h-3 w-3" />
+              <span>Due: {getDueDays(order.due_date)}</span>
+            </div>
+          </>
         )}
-
-        {/* Time indicator */}
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Clock className="h-3 w-3" />
-          <span>Due: {getDueDays()}</span>
-        </div>
 
         {/* Lock overlay when order is being moved by someone else */}
         {isLocked && (

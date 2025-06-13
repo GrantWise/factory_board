@@ -29,7 +29,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Plus, GripVertical, Tablet, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react"
+import { Settings, Plus, GripVertical, Tablet, AlertTriangle, ChevronUp, ChevronDown, X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -41,8 +41,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrderCard } from "@/components/order-card"
 import { OnlineUsersIndicator } from "@/components/online-users-indicator"
 import { CharacteristicLegend } from "@/components/characteristic-legend"
+import { CharacteristicSelector } from "@/components/characteristic-selector"
+import { CharacteristicEditor } from "@/components/characteristic-editor"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { workCentresService, ordersService, userSettingsService } from "@/lib/api-services"
+import { workCentresService, ordersService, userSettingsService, characteristicsService } from "@/lib/api-services"
 import { notify } from "@/lib/notifications"
 import { type AppError } from "@/lib/error-handling"
 import { useAuth } from "@/contexts/auth-context"
@@ -340,6 +342,7 @@ function MainPlanningBoard({
   const [isCreateOrderDialogOpen, setIsCreateOrderDialogOpen] = useState(false)
   const [isOrderDetailsDialogOpen, setIsOrderDetailsDialogOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<ManufacturingOrder | null>(null)
+  const [isCharacteristicEditorOpen, setIsCharacteristicEditorOpen] = useState(false)
   const [draggedOrderId, setDraggedOrderId] = useState<number | null>(null)
   const [draggedWorkCentreId, setDraggedWorkCentreId] = useState<number | null>(null)
   
@@ -374,6 +377,43 @@ function MainPlanningBoard({
     completion_date: ''
   })
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
+  
+  // Characteristics for new order
+  const [newOrderCharacteristics, setNewOrderCharacteristics] = useState<Array<{
+    type: string
+    value: string
+    color?: string
+    display_name?: string
+  }>>([])
+  
+  // Add characteristic to new order
+  const addCharacteristicToNewOrder = (characteristic: {
+    type: string
+    value: string
+    color?: string
+    display_name?: string
+  }) => {
+    // Check for duplicates
+    const exists = newOrderCharacteristics.some(
+      char => char.type === characteristic.type && char.value === characteristic.value
+    )
+    
+    if (exists) {
+      notify.error('This characteristic already exists for this order')
+      return
+    }
+    
+    setNewOrderCharacteristics(prev => [...prev, characteristic])
+    notify.success({
+      operation: 'add_characteristic',
+      entity: 'characteristic'
+    })
+  }
+  
+  // Remove characteristic from new order
+  const removeCharacteristicFromNewOrder = (index: number) => {
+    setNewOrderCharacteristics(prev => prev.filter((_, i) => i !== index))
+  }
 
   // Work centre ordering for configuration
   const [workCentreOrder, setWorkCentreOrder] = useState<WorkCentre[]>(() => 
@@ -654,7 +694,21 @@ function MainPlanningBoard({
       }
       
       // Backend automatically sets created_by from authenticated user
-      await ordersService.create(orderData)
+      const createdOrderResponse = await ordersService.create(orderData)
+      const newOrderId = createdOrderResponse.order.id
+      
+      // Add characteristics to the new order if any were specified
+      if (newOrderCharacteristics.length > 0 && newOrderId) {
+        for (const characteristic of newOrderCharacteristics) {
+          try {
+            await characteristicsService.createForOrder(newOrderId, characteristic)
+          } catch (charError) {
+            console.error('Failed to add characteristic:', charError)
+            // Don't fail the entire order creation, just log the error
+            notify.error(`Failed to add characteristic: ${characteristic.value}`)
+          }
+        }
+      }
       
       // Reset form
       setNewOrderForm({
@@ -671,6 +725,7 @@ function MainPlanningBoard({
         start_date: '',
         completion_date: ''
       })
+      setNewOrderCharacteristics([])
       
       setIsCreateOrderDialogOpen(false)
       notify.success({
@@ -711,6 +766,16 @@ function MainPlanningBoard({
   const handleExpandAll = useCallback(() => {
     setCollapsedCards({})
   }, [])
+
+  // Handle characteristic updates for selected order
+  const handleCharacteristicUpdate = useCallback((updatedCharacteristics: JobCharacteristic[]) => {
+    if (selectedOrder) {
+      setSelectedOrder(prev => prev ? { 
+        ...prev, 
+        job_characteristics: updatedCharacteristics 
+      } : null)
+    }
+  }, [selectedOrder])
 
 
   return (
@@ -962,41 +1027,66 @@ function MainPlanningBoard({
               </TabsContent>
               
               <TabsContent value="characteristics" className="space-y-4">
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm mb-2">Order characteristics and properties</p>
-                  <div className="space-y-3 text-left max-w-md mx-auto">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Visual Grouping Characteristics</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Add characteristics to enable visual grouping on the planning board. These help identify and categorize orders.
+                    </p>
+                  </div>
+
+                  {/* Current Characteristics */}
+                  {newOrderCharacteristics.length > 0 && (
                     <div>
-                      <Label htmlFor="customer_order">Customer Order</Label>
-                      <Input
-                        id="customer_order"
-                        placeholder="e.g., CUST-001"
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Customer reference number or code</p>
+                      <Label className="text-xs">Added Characteristics</Label>
+                      <div className="mt-2 space-y-2">
+                        {newOrderCharacteristics.map((characteristic, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 border rounded-lg bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full border"
+                                style={{ backgroundColor: characteristic.color }}
+                              />
+                              <Badge variant="outline" className="text-xs">
+                                {characteristic.type.replace('_', ' ')}
+                              </Badge>
+                              <span className="font-medium text-sm">{characteristic.value}</span>
+                              {characteristic.display_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({characteristic.display_name})
+                                </span>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => removeCharacteristicFromNewOrder(index)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="batch_size">Batch Size</Label>
-                      <Input
-                        id="batch_size"
-                        type="number"
-                        placeholder="e.g., 50"
-                        className="mt-1"
+                  )}
+
+                  {/* Add New Characteristics */}
+                  <div>
+                    <Label className="text-xs">Add Characteristics</Label>
+                    <div className="mt-2 border rounded-lg p-3">
+                      <CharacteristicSelector
+                        onSelect={addCharacteristicToNewOrder}
+                        excludeExisting={newOrderCharacteristics.map(char => ({
+                          id: 0,
+                          order_id: 0,
+                          type: char.type as JobCharacteristic['type'],
+                          value: char.value,
+                          color: char.color || '',
+                          display_name: char.display_name,
+                          is_system_generated: false,
+                          created_at: ''
+                        }))}
                       />
-                      <p className="text-xs text-gray-500 mt-1">Recommended production batch size</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="material_grade">Material Grade</Label>
-                      <Select>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select grade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="standard">Standard</SelectItem>
-                          <SelectItem value="premium">Premium</SelectItem>
-                          <SelectItem value="industrial">Industrial</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-gray-500 mt-1">Material quality grade</p>
                     </div>
                   </div>
                 </div>
@@ -1335,6 +1425,55 @@ function MainPlanningBoard({
                 </div>
               )}
 
+              {/* Characteristics Section */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Characteristics</Label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsCharacteristicEditorOpen(true)}
+                    disabled={!user || !hasPermission('orders:write')}
+                  >
+                    <Settings className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
+                </div>
+                <div className="mt-2">
+                  {selectedOrder.job_characteristics && selectedOrder.job_characteristics.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedOrder.job_characteristics.map((characteristic, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2 border rounded-lg bg-muted/30">
+                          <div 
+                            className="w-3 h-3 rounded-full border"
+                            style={{ backgroundColor: characteristic.color }}
+                          />
+                          <Badge variant="outline" className="text-xs">
+                            {characteristic.type.replace('_', ' ')}
+                          </Badge>
+                          <span className="font-medium text-sm">{characteristic.value}</span>
+                          {characteristic.display_name && (
+                            <span className="text-xs text-muted-foreground">
+                              ({characteristic.display_name})
+                            </span>
+                          )}
+                          {characteristic.is_system_generated && (
+                            <Badge variant="secondary" className="text-xs">
+                              Auto
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground border-2 border-dashed rounded-lg">
+                      <p className="text-sm">No characteristics added</p>
+                      <p className="text-xs">Add characteristics to enable visual grouping</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end">
                 <Button 
                   variant="outline"
@@ -1347,6 +1486,17 @@ function MainPlanningBoard({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Characteristic Editor Dialog */}
+      {selectedOrder && (
+        <CharacteristicEditor
+          orderId={selectedOrder.id}
+          characteristics={selectedOrder.job_characteristics || []}
+          onUpdate={handleCharacteristicUpdate}
+          open={isCharacteristicEditorOpen}
+          onOpenChange={setIsCharacteristicEditorOpen}
+        />
+      )}
 
       {/* Configuration Dialog */}
       <Dialog open={isConfigureDialogOpen} onOpenChange={setIsConfigureDialogOpen}>

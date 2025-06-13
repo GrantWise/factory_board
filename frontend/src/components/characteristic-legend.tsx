@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Eye, EyeOff } from "lucide-react"
+import { EyeOff, ChevronUp, ChevronDown } from "lucide-react"
 import type { JobCharacteristic, UserCharacteristicSettings } from "@/types/manufacturing"
 
 interface CharacteristicLegendProps {
@@ -12,14 +12,22 @@ interface CharacteristicLegendProps {
   settings: UserCharacteristicSettings
   onToggleVisibility?: () => void
   compact?: boolean
+  collapsed?: boolean
+  onToggleCollapse?: (collapsed: boolean) => void
 }
 
 export function CharacteristicLegend({ 
   characteristics, 
   settings, 
   onToggleVisibility,
-  compact = false 
+  compact = false,
+  collapsed = false,
+  onToggleCollapse
 }: CharacteristicLegendProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false)
+  
+  const isCollapsed = collapsed !== undefined ? collapsed : internalCollapsed
+  const toggleCollapse = onToggleCollapse || setInternalCollapsed
   const groupedCharacteristics = useMemo(() => {
     // Group characteristics by type
     const grouped = characteristics.reduce((acc, char) => {
@@ -97,19 +105,32 @@ export function CharacteristicLegend({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm">Visual Grouping Legend</CardTitle>
-          {onToggleVisibility && (
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              onClick={onToggleVisibility}
+              onClick={() => toggleCollapse(!isCollapsed)}
               className="h-8 w-8 p-0"
+              title={isCollapsed ? "Expand legend" : "Collapse legend"}
             >
-              <Eye className="h-4 w-4" />
+              {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
             </Button>
-          )}
+            {onToggleVisibility && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onToggleVisibility}
+                className="h-8 w-8 p-0"
+                title="Hide legend"
+              >
+                <EyeOff className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      {!isCollapsed && (
+        <CardContent className="pt-0">
         <div className="space-y-3">
           {activeTypes.map(type => {
             const items = groupedCharacteristics[type] || []
@@ -176,7 +197,8 @@ export function CharacteristicLegend({
             </div>
           </div>
         </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   )
 }
