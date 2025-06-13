@@ -39,7 +39,8 @@ const orderUpdateSchema = Joi.object({
   status: Joi.string().valid(...VALID_STATUSES).optional(),
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
   due_date: Joi.date().iso().optional(),
-  start_date: Joi.date().iso().optional()
+  start_date: Joi.date().iso().optional(),
+  completion_date: Joi.date().iso().optional()
 });
 
 // Validation schema for order creation
@@ -73,6 +74,7 @@ const orderImportSchema = Joi.object({
   priority: Joi.string().valid('low', 'medium', 'high', 'urgent').optional(),
   due_date: Joi.date().iso().optional(),
   start_date: Joi.date().iso().optional(),
+  completion_date: Joi.date().iso().optional(),
   manufacturing_steps: Joi.array().items(stepSchema).optional()
 });
 
@@ -183,6 +185,7 @@ const schemas = {
           priority: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
           due_date: Joi.string().isoDate().optional(),
           start_date: Joi.string().isoDate().optional(),
+          completion_date: Joi.string().isoDate().optional(),
           external_reference: Joi.string().max(100).optional(),
           metadata: Joi.object().optional()
         })

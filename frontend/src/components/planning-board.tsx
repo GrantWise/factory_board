@@ -29,7 +29,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Plus, GripVertical, Tablet, AlertTriangle } from "lucide-react"
+import { Settings, Plus, GripVertical, Tablet, AlertTriangle, ChevronUp, ChevronDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrderCard } from "@/components/order-card"
 import { OnlineUsersIndicator } from "@/components/online-users-indicator"
 import { CharacteristicLegend } from "@/components/characteristic-legend"
@@ -202,7 +203,9 @@ function DraggableOrderCard({
   isDragging, 
   onDragStart,
   onClick,
-  characteristicSettings
+  characteristicSettings,
+  isCollapsed,
+  onToggleCollapse
 }: { 
   order: ManufacturingOrder
   columnId: number
@@ -211,6 +214,8 @@ function DraggableOrderCard({
   onDragStart: (order: ManufacturingOrder) => void 
   onClick?: (order: ManufacturingOrder) => void
   characteristicSettings?: UserCharacteristicSettings
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }) {
   const ref = useRef<HTMLDivElement | null>(null)
   
@@ -248,6 +253,8 @@ function DraggableOrderCard({
         isLocked={false} 
         onClick={onClick ? () => onClick(order) : undefined}
         characteristicSettings={characteristicSettings}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={onToggleCollapse}
       />
     </div>
   )
@@ -292,7 +299,7 @@ function DropZone({
     })
     
     return cleanup
-  }, [columnId, index])
+  }, [columnId, index, insertionPoint])
 
   const isInsertionPoint = insertionPoint === 'before' || insertionPoint === 'after'
   
@@ -301,14 +308,14 @@ function DropZone({
       ref={ref}
       className={cn(
         "transition-all duration-200",
-        isInsertionPoint && "min-h-[8px] flex items-center justify-center",
+        isInsertionPoint && "min-h-[12px] flex items-center justify-center",
         isDraggedOver && isActive && isInsertionPoint && "bg-blue-200 border-2 border-blue-400 border-dashed rounded-lg",
         isDraggedOver && isActive && !isInsertionPoint && "bg-blue-50 ring-2 ring-blue-300 ring-dashed",
         !isActive && "pointer-events-none"
       )}
     >
       {isInsertionPoint && isDraggedOver ? (
-        <div className="w-full h-1 bg-blue-400 rounded-full" />
+        <div className="w-full h-2 bg-blue-400 rounded-full" />
       ) : (
         children
       )}
@@ -330,7 +337,6 @@ function MainPlanningBoard({
   
   // State management
   const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
-  const [isAddWorkCentreDialogOpen, setIsAddWorkCentreDialogOpen] = useState(false)
   const [isCreateOrderDialogOpen, setIsCreateOrderDialogOpen] = useState(false)
   const [isOrderDetailsDialogOpen, setIsOrderDetailsDialogOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<ManufacturingOrder | null>(null)
@@ -347,6 +353,10 @@ function MainPlanningBoard({
   })
   const [allCharacteristics, setAllCharacteristics] = useState<JobCharacteristic[]>([])
   const [showLegend, setShowLegend] = useState(true)
+  const [legendCollapsed, setLegendCollapsed] = useState(false)
+  
+  // Card collapse state - maps order ID to collapse state
+  const [collapsedCards, setCollapsedCards] = useState<Record<number, boolean>>({})
 
   // Order creation form state
   const [newOrderForm, setNewOrderForm] = useState({
@@ -354,9 +364,14 @@ function MainPlanningBoard({
     stock_code: '',
     description: '',
     quantity_to_make: '',
+    quantity_completed: '0',
     current_work_centre_id: '',
+    current_operation: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
-    due_date: ''
+    status: 'not_started' as 'not_started' | 'in_progress' | 'complete' | 'on_hold' | 'cancelled',
+    due_date: '',
+    start_date: '',
+    completion_date: ''
   })
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
 
@@ -462,8 +477,7 @@ function MainPlanningBoard({
   const handleReorderInColumn = useCallback(async (
     columnId: number, 
     fromIndex: number, 
-    toIndex: number, 
-    _insertionPoint?: string
+    toIndex: number
   ) => {
     if (activeReorderOperations.has(columnId)) {
       console.warn('Reorder operation already in progress for column', columnId);
@@ -510,67 +524,7 @@ function MainPlanningBoard({
         return next;
       });
     }
-  }, [getOrdersForWorkCentre, onOrderReorder]);
-
-  const _handleOrderMove = useCallback(async (
-    orderId: number,
-    toWorkCentreId: number,
-    newIndex?: number
-  ) => {
-    try {
-      // Get the order being moved
-      const order = orders.find(o => o.id === orderId);
-      if (!order) {
-        throw new Error('Order not found');
-      }
-
-      // Handle unassigned column (columnId 0 means unassign)
-      const targetWorkCentreId = toWorkCentreId === 0 ? null : toWorkCentreId;
-      const newPosition = newIndex !== undefined ? newIndex + 1 : undefined;
-
-      // Update optimistic state
-      setOptimisticOrderMap(prev => {
-        const next = { ...prev };
-        
-        // Remove from old work centre (use mapKey 0 for unassigned)
-        const oldMapKey = order.current_work_centre_id || 0;
-        if (next[oldMapKey]) {
-          next[oldMapKey] = next[oldMapKey].filter(id => id !== orderId);
-        }
-        
-        // Add to new work centre (use mapKey 0 for unassigned)
-        const newMapKey = toWorkCentreId;
-        const targetOrders = getOrdersForWorkCentre(targetWorkCentreId);
-        const newOrderIds = [...targetOrders.map(o => o.id)];
-        if (newIndex !== undefined) {
-          newOrderIds.splice(newIndex, 0, orderId);
-        } else {
-          newOrderIds.push(orderId);
-        }
-        next[newMapKey] = newOrderIds;
-        
-        return next;
-      });
-
-      // Send update to backend
-      if (targetWorkCentreId === null) {
-        // Unassign order - update to null work centre
-        await onOrderUpdate?.(orderId, { current_work_centre_id: null });
-      } else {
-        // Assign to work centre
-        await ordersService.move(orderId, targetWorkCentreId, 'planning_board_move', newPosition);
-      }
-
-      // Refresh data
-      await onOrderUpdate?.(orderId, {});
-    } catch (error) {
-      console.error('Failed to move order:', error);
-      notify.error(error as AppError, {
-        operation: 'move_order',
-        entity: 'order'
-      });
-    }
-  }, [orders, getOrdersForWorkCentre, onOrderUpdate]);
+  }, [getOrdersForWorkCentre, onOrderReorder, activeReorderOperations]);
 
   // Global drag monitor
   useEffect(() => {
@@ -591,12 +545,11 @@ function MainPlanningBoard({
           const orderId = dragData.id
           const targetColumnId = dropData.columnId
           const targetIndex = dropData.index
-          const insertionPoint = dropData.insertionPoint
 
           if (dragData.sourceColumnId === targetColumnId && targetIndex !== undefined) {
             // Reorder within same column
             if (dragData.sourceIndex !== undefined && dragData.sourceIndex !== targetIndex) {
-              handleReorderInColumn(targetColumnId, dragData.sourceIndex, targetIndex, insertionPoint)
+              handleReorderInColumn(targetColumnId, dragData.sourceIndex, targetIndex)
             }
           } else {
             // Move between columns
@@ -690,10 +643,14 @@ function MainPlanningBoard({
       const orderData = {
         ...newOrderForm,
         quantity_to_make: parseInt(newOrderForm.quantity_to_make),
+        quantity_completed: parseInt(newOrderForm.quantity_completed) || 0,
         current_work_centre_id: newOrderForm.current_work_centre_id && newOrderForm.current_work_centre_id !== "unassigned" 
           ? parseInt(newOrderForm.current_work_centre_id) 
           : undefined,
-        due_date: newOrderForm.due_date || undefined  // Convert empty string to undefined
+        current_operation: newOrderForm.current_operation || undefined,
+        due_date: newOrderForm.due_date || undefined,
+        start_date: newOrderForm.start_date || undefined,
+        completion_date: newOrderForm.completion_date || undefined
       }
       
       // Backend automatically sets created_by from authenticated user
@@ -705,9 +662,14 @@ function MainPlanningBoard({
         stock_code: '',
         description: '',
         quantity_to_make: '',
+        quantity_completed: '0',
         current_work_centre_id: '',
+        current_operation: '',
         priority: 'medium',
-        due_date: ''
+        status: 'not_started',
+        due_date: '',
+        start_date: '',
+        completion_date: ''
       })
       
       setIsCreateOrderDialogOpen(false)
@@ -729,6 +691,27 @@ function MainPlanningBoard({
     setSelectedOrder(order)
     setIsOrderDetailsDialogOpen(true)
   }
+
+  const handleToggleCardCollapse = useCallback((orderId: number) => {
+    setCollapsedCards(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }))
+  }, [])
+
+  const handleCollapseAll = useCallback(() => {
+    const allOrderIds = orders.map(order => order.id)
+    const newState = allOrderIds.reduce((acc, id) => {
+      acc[id] = true
+      return acc
+    }, {} as Record<number, boolean>)
+    setCollapsedCards(newState)
+  }, [orders])
+
+  const handleExpandAll = useCallback(() => {
+    setCollapsedCards({})
+  }, [])
+
 
   return (
     <div className="space-y-4">
@@ -786,12 +769,22 @@ function MainPlanningBoard({
               <Tablet className="h-4 w-4 mr-1" /> TV Display
             </Button>
             <Button 
-              onClick={() => setIsAddWorkCentreDialogOpen(true)} 
+              onClick={handleCollapseAll}
               size="sm" 
               variant="outline"
               className="md:h-8 h-10 touch-manipulation"
+              title="Collapse all order cards"
             >
-              <Plus className="h-4 w-4 mr-1" /> Add Work Centre
+              <ChevronUp className="h-4 w-4 mr-1" /> Collapse All
+            </Button>
+            <Button 
+              onClick={handleExpandAll}
+              size="sm" 
+              variant="outline"
+              className="md:h-8 h-10 touch-manipulation"
+              title="Expand all order cards"
+            >
+              <ChevronDown className="h-4 w-4 mr-1" /> Expand All
             </Button>
             <Button 
               onClick={() => setIsConfigureDialogOpen(true)} 
@@ -806,12 +799,13 @@ function MainPlanningBoard({
 
       {/* Create Order Dialog */}
       <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Order</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateOrder} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {/* Header Fields - Always Visible */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg border">
               <div>
                 <Label htmlFor="order_number">Order Number *</Label>
                 <Input
@@ -832,30 +826,15 @@ function MainPlanningBoard({
                   required
                 />
               </div>
-            </div>
-
-            <div>
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                value={newOrderForm.description}
-                onChange={(e) => setNewOrderForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Product description"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="quantity_to_make">Quantity *</Label>
-                <Input
-                  id="quantity_to_make"
-                  type="number"
-                  min="1"
-                  value={newOrderForm.quantity_to_make}
-                  onChange={(e) => setNewOrderForm(prev => ({ ...prev, quantity_to_make: e.target.value }))}
-                  placeholder="100"
+              <div className="col-span-2">
+                <Label htmlFor="description">Description *</Label>
+                <Textarea
+                  id="description"
+                  value={newOrderForm.description}
+                  onChange={(e) => setNewOrderForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Product description"
                   required
+                  rows={2}
                 />
               </div>
               <div>
@@ -878,41 +857,184 @@ function MainPlanningBoard({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="current_work_centre_id">Work Centre</Label>
-                <Select 
-                  value={newOrderForm.current_work_centre_id || "unassigned"} 
-                  onValueChange={(value) => 
-                    setNewOrderForm(prev => ({ 
-                      ...prev, 
-                      current_work_centre_id: value === "unassigned" ? "" : value 
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {workCentres.filter(wc => wc.is_active).map(wc => (
-                      <SelectItem key={wc.id} value={wc.id.toString()}>
-                        {wc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="due_date">Due Date</Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  value={newOrderForm.due_date}
-                  onChange={(e) => setNewOrderForm(prev => ({ ...prev, due_date: e.target.value }))}
-                />
-              </div>
-            </div>
+            {/* Tabbed Content */}
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="characteristics">Characteristics</TabsTrigger>
+                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="basic" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="quantity_to_make">Quantity to Make *</Label>
+                    <Input
+                      id="quantity_to_make"
+                      type="number"
+                      min="1"
+                      value={newOrderForm.quantity_to_make}
+                      onChange={(e) => setNewOrderForm(prev => ({ ...prev, quantity_to_make: e.target.value }))}
+                      placeholder="100"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="quantity_completed">Quantity Completed</Label>
+                    <Input
+                      id="quantity_completed"
+                      type="number"
+                      min="0"
+                      value={newOrderForm.quantity_completed || '0'}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        const maxQuantity = parseInt(newOrderForm.quantity_to_make) || 0;
+                        if (value <= maxQuantity) {
+                          setNewOrderForm(prev => ({ ...prev, quantity_completed: e.target.value }));
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="current_work_centre_id">Work Centre</Label>
+                    <Select 
+                      value={newOrderForm.current_work_centre_id || "unassigned"} 
+                      onValueChange={(value) => 
+                        setNewOrderForm(prev => ({ 
+                          ...prev, 
+                          current_work_centre_id: value === "unassigned" ? "" : value 
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Unassigned" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {workCentres.filter(wc => wc.is_active).map(wc => (
+                          <SelectItem key={wc.id} value={wc.id.toString()}>
+                            {wc.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <Select 
+                      value={newOrderForm.status || 'not_started'} 
+                      onValueChange={(value: 'not_started' | 'in_progress' | 'complete' | 'on_hold' | 'cancelled') => 
+                        setNewOrderForm(prev => ({ ...prev, status: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="not_started">Not Started</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="complete">Complete</SelectItem>
+                        <SelectItem value="on_hold">On Hold</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="current_operation">Current Operation</Label>
+                    <Input
+                      id="current_operation"
+                      value={newOrderForm.current_operation || ''}
+                      onChange={(e) => setNewOrderForm(prev => ({ ...prev, current_operation: e.target.value }))}
+                      placeholder="Machining, Assembly, etc."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="due_date">Due Date</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={newOrderForm.due_date}
+                      onChange={(e) => setNewOrderForm(prev => ({ ...prev, due_date: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="characteristics" className="space-y-4">
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm mb-2">Order characteristics and properties</p>
+                  <div className="space-y-3 text-left max-w-md mx-auto">
+                    <div>
+                      <Label htmlFor="customer_order">Customer Order</Label>
+                      <Input
+                        id="customer_order"
+                        placeholder="e.g., CUST-001"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Customer reference number or code</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="batch_size">Batch Size</Label>
+                      <Input
+                        id="batch_size"
+                        type="number"
+                        placeholder="e.g., 50"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Recommended production batch size</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="material_grade">Material Grade</Label>
+                      <Select>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="standard">Standard</SelectItem>
+                          <SelectItem value="premium">Premium</SelectItem>
+                          <SelectItem value="industrial">Industrial</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-1">Material quality grade</p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="advanced" className="space-y-4">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="start_date">Start Date</Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={newOrderForm.start_date || ''}
+                        onChange={(e) => setNewOrderForm(prev => ({ ...prev, start_date: e.target.value }))}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">When production should begin</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="completion_date">Completion Date</Label>
+                      <Input
+                        id="completion_date"
+                        type="date"
+                        value={newOrderForm.completion_date || ''}
+                        onChange={(e) => setNewOrderForm(prev => ({ ...prev, completion_date: e.target.value }))}
+                        disabled={(newOrderForm.status || 'not_started') !== 'complete'}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(newOrderForm.status || 'not_started') !== 'complete' 
+                          ? 'Only available when status is "Complete"'
+                          : 'When production was completed'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
 
             <div className="flex gap-2 pt-4 border-t">
               <Button 
@@ -995,18 +1117,57 @@ function MainPlanningBoard({
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Priority</Label>
-                  <Badge variant={
-                    selectedOrder.priority === 'high' ? 'destructive' :
-                    selectedOrder.priority === 'medium' ? 'secondary' : 'outline'
-                  } className="mt-1">
-                    {selectedOrder.priority}
-                  </Badge>
+                  <Select
+                    value={selectedOrder.priority}
+                    onValueChange={async (newPriority: ManufacturingOrder['priority']) => {
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { priority: newPriority })
+                        setSelectedOrder(prev => prev ? { ...prev, priority: newPriority } : null)
+                        toast.success('Order priority updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating order priority:', error);
+                        toast.error('Failed to update order priority')
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Quantity</Label>
-                  <p className="text-sm mt-1">
+                  <Label className="text-sm font-medium">Quantity Completed</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={selectedOrder.quantity_to_make}
+                    value={selectedOrder.quantity_completed}
+                    onChange={async (e) => {
+                      const newQuantity = parseInt(e.target.value) || 0;
+                      if (newQuantity > selectedOrder.quantity_to_make) {
+                        toast.error(`Completed quantity cannot exceed ${selectedOrder.quantity_to_make}`)
+                        return;
+                      }
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { quantity_completed: newQuantity })
+                        setSelectedOrder(prev => prev ? { ...prev, quantity_completed: newQuantity } : null)
+                        toast.success('Quantity completed updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating quantity completed:', error);
+                        toast.error('Failed to update quantity completed')
+                      }
+                    }}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
                     {selectedOrder.quantity_completed} / {selectedOrder.quantity_to_make}
-                    <span className="text-muted-foreground ml-2">
+                    <span className="ml-2">
                       ({Math.round((selectedOrder.quantity_completed / selectedOrder.quantity_to_make) * 100)}%)
                     </span>
                   </p>
@@ -1032,41 +1193,122 @@ function MainPlanningBoard({
                 </div>
               </div>
 
-              {/* Work Centre and Dates */}
+              {/* Work Centre and Operations */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Current Work Centre</Label>
-                  <p className="text-sm mt-1">
-                    {selectedOrder.current_work_centre_id 
-                      ? workCentres.find(wc => wc.id === selectedOrder.current_work_centre_id)?.name || 'Unknown'
-                      : 'Unassigned'
-                    }
-                  </p>
+                  <Select
+                    value={selectedOrder.current_work_centre_id?.toString() || 'unassigned'}
+                    onValueChange={async (value) => {
+                      const workCentreId = value === 'unassigned' ? null : parseInt(value);
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { current_work_centre_id: workCentreId })
+                        setSelectedOrder(prev => prev ? { ...prev, current_work_centre_id: workCentreId } : null)
+                        toast.success('Work centre updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating work centre:', error);
+                        toast.error('Failed to update work centre')
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {workCentres.map(wc => (
+                        <SelectItem key={wc.id} value={wc.id.toString()}>
+                          {wc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Current Operation</Label>
-                  <p className="text-sm mt-1">{selectedOrder.current_operation || 'N/A'}</p>
+                  <Input
+                    value={selectedOrder.current_operation || ''}
+                    onChange={async (e) => {
+                      const newOperation = e.target.value.trim();
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { current_operation: newOperation || undefined })
+                        setSelectedOrder(prev => prev ? { ...prev, current_operation: newOperation || undefined } : null)
+                        toast.success('Current operation updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating current operation:', error);
+                        toast.error('Failed to update current operation')
+                      }
+                    }}
+                    placeholder="Enter current operation"
+                    className="mt-1"
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Dates */}
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Due Date</Label>
-                  <p className="text-sm mt-1">
-                    {selectedOrder.due_date 
-                      ? new Date(selectedOrder.due_date).toLocaleDateString()
-                      : 'Not set'
-                    }
-                  </p>
+                  <Input
+                    type="date"
+                    value={selectedOrder.due_date ? new Date(selectedOrder.due_date).toISOString().split('T')[0] : ''}
+                    onChange={async (e) => {
+                      const newDueDate = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { due_date: newDueDate })
+                        setSelectedOrder(prev => prev ? { ...prev, due_date: newDueDate } : null)
+                        toast.success('Due date updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating due date:', error);
+                        toast.error('Failed to update due date')
+                      }
+                    }}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Start Date</Label>
-                  <p className="text-sm mt-1">
-                    {selectedOrder.start_date 
-                      ? new Date(selectedOrder.start_date).toLocaleDateString()
-                      : 'Not started'
-                    }
-                  </p>
+                  <Input
+                    type="date"
+                    value={selectedOrder.start_date ? new Date(selectedOrder.start_date).toISOString().split('T')[0] : ''}
+                    onChange={async (e) => {
+                      const newStartDate = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { start_date: newStartDate })
+                        setSelectedOrder(prev => prev ? { ...prev, start_date: newStartDate } : null)
+                        toast.success('Start date updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating start date:', error);
+                        toast.error('Failed to update start date')
+                      }
+                    }}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Completion Date</Label>
+                  <Input
+                    type="date"
+                    value={selectedOrder.completion_date ? new Date(selectedOrder.completion_date).toISOString().split('T')[0] : ''}
+                    onChange={async (e) => {
+                      const newCompletionDate = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                      try {
+                        await onOrderUpdate?.(selectedOrder.id, { completion_date: newCompletionDate })
+                        setSelectedOrder(prev => prev ? { ...prev, completion_date: newCompletionDate } : null)
+                        toast.success('Completion date updated successfully')
+                      } catch (error) {
+                        console.error('[PlanningBoard] Error updating completion date:', error);
+                        toast.error('Failed to update completion date')
+                      }
+                    }}
+                    className="mt-1"
+                    disabled={selectedOrder.status !== 'complete'}
+                  />
+                  {selectedOrder.status !== 'complete' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Only available when status is &quot;Complete&quot;
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1164,28 +1406,6 @@ function MainPlanningBoard({
         </DialogContent>
       </Dialog>
 
-      {/* Add Work Centre Dialog */}
-      <Dialog open={isAddWorkCentreDialogOpen} onOpenChange={setIsAddWorkCentreDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Work Centre</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              To add a new work centre, please use the Work Centres management page from the sidebar.
-            </p>
-            <Button 
-              onClick={() => {
-                setIsAddWorkCentreDialogOpen(false)
-                onNavigate?.('workcentres')
-              }}
-              className="w-full"
-            >
-              Go to Work Centres Management
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Characteristics Legend */}
       {characteristicSettings.enabled && showLegend && (
@@ -1194,11 +1414,13 @@ function MainPlanningBoard({
           settings={characteristicSettings}
           onToggleVisibility={() => setShowLegend(!showLegend)}
           compact={false}
+          collapsed={legendCollapsed}
+          onToggleCollapse={setLegendCollapsed}
         />
       )}
 
-      {/* Main Planning Board Grid - Optimized for Tablet */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3 md:gap-4">
+      {/* Main Planning Board Grid - Optimized for Tablet with max width constraints */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4 w-full overflow-x-auto">
         {/* Unassigned Orders Column */}
         {(() => {
           const unassignedOrders = getOrdersForWorkCentre(null)
@@ -1209,7 +1431,7 @@ function MainPlanningBoard({
               columnId={0} // Use 0 for unassigned
               isActive={true}
             >
-              <Card className="h-fit min-h-[400px] md:min-h-[500px] transition-all duration-200 touch-manipulation border-dashed border-2 border-amber-300">
+              <Card className="h-[400px] md:h-[500px] transition-all duration-200 touch-manipulation border-dashed border-2 border-amber-300 max-w-sm w-full flex flex-col">
                 <CardHeader className="pb-3 bg-amber-50 border-b border-amber-200">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base md:text-lg font-semibold text-amber-800">
@@ -1220,7 +1442,7 @@ function MainPlanningBoard({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 p-3 md:p-4">
+                <CardContent className="space-y-3 p-3 md:p-4 flex-1 overflow-y-auto">
                   {unassignedOrders.length === 0 ? (
                     <div className="text-center py-8 md:py-12 text-muted-foreground border-2 border-dashed rounded-lg transition-colors border-amber-200 touch-manipulation">
                       <p className="text-sm md:text-base text-amber-700">All orders assigned</p>
@@ -1235,7 +1457,7 @@ function MainPlanningBoard({
                         isActive={true}
                         insertionPoint="before"
                       >
-                        <div className="h-1" />
+                        <div className="h-3 flex items-center justify-center" />
                       </DropZone>
                       
                       {unassignedOrders.map((order, index) => (
@@ -1254,6 +1476,8 @@ function MainPlanningBoard({
                               onDragStart={handleOrderDragStart}
                               onClick={handleOrderClick}
                               characteristicSettings={characteristicSettings}
+                              isCollapsed={collapsedCards[order.id]}
+                              onToggleCollapse={() => handleToggleCardCollapse(order.id)}
                             />
                           </DropZone>
                           
@@ -1264,7 +1488,7 @@ function MainPlanningBoard({
                             isActive={true}
                             insertionPoint="after"
                           >
-                            <div className="h-1" />
+                            <div className="h-3 flex items-center justify-center" />
                           </DropZone>
                         </React.Fragment>
                       ))}
@@ -1286,7 +1510,7 @@ function MainPlanningBoard({
               columnId={workCentre.id}
               isActive={true}
             >
-              <Card className="h-fit min-h-[400px] md:min-h-[500px] transition-all duration-200 touch-manipulation">
+              <Card className="h-[400px] md:h-[500px] transition-all duration-200 touch-manipulation max-w-sm w-full flex flex-col">
                 <CardHeader className="pb-3 bg-gray-50 border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base md:text-lg font-semibold text-gray-900">
@@ -1315,7 +1539,7 @@ function MainPlanningBoard({
                     </DropdownMenu>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 p-3 md:p-4">
+                <CardContent className="space-y-3 p-3 md:p-4 flex-1 overflow-y-auto">
                   {workCentreOrders.length === 0 ? (
                     <div className="text-center py-8 md:py-12 text-muted-foreground border-2 border-dashed rounded-lg transition-colors border-gray-200 touch-manipulation">
                       <p className="text-sm md:text-base">No orders assigned</p>
@@ -1330,7 +1554,7 @@ function MainPlanningBoard({
                         isActive={true}
                         insertionPoint="before"
                       >
-                        <div className="h-1" />
+                        <div className="h-3 flex items-center justify-center" />
                       </DropZone>
                       
                       {workCentreOrders.map((order, index) => (
@@ -1349,6 +1573,8 @@ function MainPlanningBoard({
                               onDragStart={handleOrderDragStart}
                               onClick={handleOrderClick}
                               characteristicSettings={characteristicSettings}
+                              isCollapsed={collapsedCards[order.id]}
+                              onToggleCollapse={() => handleToggleCardCollapse(order.id)}
                             />
                           </DropZone>
                           
@@ -1359,7 +1585,7 @@ function MainPlanningBoard({
                             isActive={true}
                             insertionPoint="after"
                           >
-                            <div className="h-1" />
+                            <div className="h-3 flex items-center justify-center" />
                           </DropZone>
                         </React.Fragment>
                       ))}
