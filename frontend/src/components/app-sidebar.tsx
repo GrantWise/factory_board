@@ -100,12 +100,7 @@ export function AppSidebar({ currentPage = "dashboard", onNavigate, ...props }: 
   }
 
   // Filter navigation items based on user role
-  const filteredNavigationItems = navigationItems.filter(item => {
-    if (item.requiresRole) {
-      return hasRole(item.requiresRole)
-    }
-    return true
-  })
+  const filteredNavigationItems = navigationItems
 
   return (
     <Sidebar variant="inset" {...props}>

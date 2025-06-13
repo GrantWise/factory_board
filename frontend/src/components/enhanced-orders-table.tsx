@@ -333,7 +333,10 @@ export function EnhancedOrdersTable({ orders, workCentres = [], onOrderUpdate }:
       setResetTableSelection(true)
       setTimeout(() => setResetTableSelection(false), 100)
       
-      notify.success(`Successfully updated ${selectedOrders.length} orders`)
+      notify.success({
+        operation: 'bulk_edit_orders',
+        entity: 'orders'
+      })
     } catch (error) {
       console.error('Bulk edit failed:', error)
       notify.error(error as AppError, {

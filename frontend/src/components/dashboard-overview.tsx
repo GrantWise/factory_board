@@ -25,9 +25,8 @@
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { AnalyticsCards } from "@/components/analytics-cards"
-import { Plus, Activity, Clock } from "lucide-react"
+import { Activity, Clock } from "lucide-react"
 import { useApiData } from "@/hooks/use-api-data"
 import { analyticsService } from "@/lib/api-services"
 import type { DashboardMetrics, ManufacturingOrder, WorkCentre } from "@/types/manufacturing"
@@ -43,7 +42,7 @@ interface DashboardOverviewProps {
   onNavigate?: (page: string) => void
 }
 
-export function DashboardOverview({ metrics, recentOrders, workCentres, onNavigate }: DashboardOverviewProps) {
+export function DashboardOverview({ metrics, recentOrders, workCentres }: DashboardOverviewProps) {
   // Fetch real-time recent activity from audit logs
   const { data: recentActivityData, isLoading: isLoadingActivity } = useApiData(
     () => analyticsService.getRecentActivity(5),
@@ -93,17 +92,9 @@ export function DashboardOverview({ metrics, recentOrders, workCentres, onNaviga
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-primary">Manufacturing Dashboard</h2>
-          <p className="text-gray-600">Overview of your manufacturing operations</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => onNavigate?.("orders")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Order
-          </Button>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-primary">Manufacturing Dashboard</h2>
+        <p className="text-gray-600">Overview of your manufacturing operations</p>
       </div>
 
       {/* Analytics Cards */}

@@ -56,7 +56,7 @@ export function ApiKeysAnalytics() {
 
   // Fetch usage data only for specific keys (not "all")
   const { data: usageData, isLoading: isLoadingUsage } = useApiData<ApiKeyUsage>(
-    selectedKey !== "all" ? () => apiKeysService.getUsage(selectedKey, timeRange) : undefined,
+    selectedKey !== "all" ? () => apiKeysService.getUsage(selectedKey, timeRange) : () => Promise.resolve({} as ApiKeyUsage),
     [selectedKey, timeRange],
     { autoRefresh: 60000 }
   )
@@ -156,7 +156,7 @@ export function ApiKeysAnalytics() {
                     <div key={key.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
                         <div className="font-medium">{key.name}</div>
-                        <div className="text-sm text-gray-600">{key.description}</div>
+                        <div className="text-sm text-gray-600">{key.name} API Key</div>
                       </div>
                       <div className="text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs ${key.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

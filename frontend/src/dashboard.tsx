@@ -20,7 +20,7 @@ import { useTheme } from "next-themes"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { PlanningBoard } from "@/components/planning-board"
-import { OrdersTable } from "@/components/orders-table"
+import { EnhancedOrdersTable } from "@/components/enhanced-orders-table"
 import { WorkCentresManagement } from "@/components/work-centres-management"
 import {
   Breadcrumb,
@@ -296,7 +296,7 @@ export default function Dashboard() {
       case "workcentres":
         return <WorkCentresManagement workCentres={workCentres} onWorkCentreUpdate={handleWorkCentreUpdate} />
       case "orders":
-        return <OrdersTable orders={orders} workCentres={workCentres} />
+        return <EnhancedOrdersTable orders={orders} workCentres={workCentres} onOrderUpdate={handleOrderUpdate} />
       case "analytics":
         return <ManufacturingAnalytics />
       case "settings":
@@ -309,8 +309,9 @@ export default function Dashboard() {
   return (
     <SidebarProvider>
       <AppSidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-4 bg-sidebar text-sidebar-foreground">
+      <SidebarInset className="flex flex-col">
+        <header className="fixed top-0 right-0 z-50 flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border px-4 bg-sidebar text-sidebar-foreground peer-data-[state=collapsed]:left-[calc(var(--sidebar-width-icon))] md:peer-data-[state=collapsed]:left-[calc(var(--sidebar-width-icon))]" 
+                style={{ left: 'var(--sidebar-width, 16rem)' }}>
           <SidebarTrigger className="-ml-1 text-sidebar-foreground hover:bg-sidebar-accent" />
           <Separator orientation="vertical" className="mr-2 h-4 bg-sidebar-foreground/20" />
           <Breadcrumb>
@@ -344,7 +345,11 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4">{renderCurrentPage()}</div>
+        <main className="flex-1 overflow-x-hidden min-w-0 pt-16">
+          <div className="h-full overflow-y-auto">
+            <div className="flex flex-1 flex-col gap-4 p-4 w-full min-w-0">{renderCurrentPage()}</div>
+          </div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   )
