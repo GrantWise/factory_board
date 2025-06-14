@@ -356,7 +356,7 @@ function MainPlanningBoard({
   })
   const [allCharacteristics, setAllCharacteristics] = useState<JobCharacteristic[]>([])
   const [showLegend, setShowLegend] = useState(true)
-  const [legendCollapsed, setLegendCollapsed] = useState(false)
+  const [legendCollapsed, setLegendCollapsed] = useState(true)
   
   // Card collapse state - maps order ID to collapse state
   const [collapsedCards, setCollapsedCards] = useState<Record<number, boolean>>({})
