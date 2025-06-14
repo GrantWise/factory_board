@@ -49,10 +49,16 @@ class WorkCentre {
     return this.convertBooleans(this.findById(result.lastInsertRowid));
   }
 
-  // Find work centre by ID with machines
+  // Find work centre by ID with machines and current job count
   findById(id) {
     const workCentre = this.db.prepare(`
-      SELECT * FROM ${this.table} WHERE id = ?
+      SELECT wc.*,
+             COUNT(mo.id) as current_jobs
+      FROM ${this.table} wc
+      LEFT JOIN manufacturing_orders mo ON mo.current_work_centre_id = wc.id 
+        AND mo.status IN ('not_started', 'in_progress')
+      WHERE wc.id = ?
+      GROUP BY wc.id
     `).get(id);
 
     if (!workCentre) return null;
