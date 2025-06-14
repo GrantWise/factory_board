@@ -312,6 +312,72 @@ describe('Work Centres Endpoints', () => {
       expect(deletedWorkCentre.is_active).toBe(0);
     });
 
+    test('should prevent deletion of work centre with assigned jobs', async () => {
+      // Create a work centre to delete
+      const result = db.prepare(`
+        INSERT INTO work_centres (name, code, capacity, display_order, is_active)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Centre With Jobs', 'WITH-JOBS', 1, 99, 1);
+
+      const workCentreId = result.lastInsertRowid;
+
+      // Create manufacturing orders assigned to this work centre
+      const { createTestOrder } = require('../helpers/testUtils');
+      createTestOrder(db, workCentreId, testUsers.admin.id, { 
+        status: 'not_started',
+        order_number: `TEST-NOT-STARTED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      });
+      createTestOrder(db, workCentreId, testUsers.admin.id, { 
+        status: 'in_progress',
+        order_number: `TEST-IN-PROGRESS-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      });
+
+      const response = await request(app)
+        .delete(`/api/work-centres/${workCentreId}`)
+        .set('Authorization', createAuthHeader(adminToken));
+
+      assertErrorResponse(response, 409, 'HAS_ASSIGNED_JOBS');
+      
+      // Verify error message includes job count
+      expect(response.body.error).toContain('Cannot delete work centre with 2 assigned job(s)');
+      
+      // Verify work centre still exists and is active
+      const workCentre = db.prepare('SELECT is_active FROM work_centres WHERE id = ?').get(workCentreId);
+      expect(workCentre.is_active).toBe(1);
+    });
+
+    test('should allow deletion of work centre with only completed jobs', async () => {
+      // Create a work centre to delete
+      const result = db.prepare(`
+        INSERT INTO work_centres (name, code, capacity, display_order, is_active)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('Centre Completed Jobs', 'COMPLETED-JOBS', 1, 99, 1);
+
+      const workCentreId = result.lastInsertRowid;
+
+      // Create manufacturing orders with completed status (should not prevent deletion)
+      const { createTestOrder } = require('../helpers/testUtils');
+      createTestOrder(db, workCentreId, testUsers.admin.id, { 
+        status: 'complete',
+        order_number: `TEST-COMPLETE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      });
+      createTestOrder(db, workCentreId, testUsers.admin.id, { 
+        status: 'cancelled',
+        order_number: `TEST-CANCELLED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      });
+
+      const response = await request(app)
+        .delete(`/api/work-centres/${workCentreId}`)
+        .set('Authorization', createAuthHeader(adminToken));
+
+      const body = assertApiResponse(response, 200);
+      expect(body).toHaveProperty('message', 'Work centre deleted successfully');
+
+      // Verify it's marked as inactive
+      const deletedWorkCentre = db.prepare('SELECT is_active FROM work_centres WHERE id = ?').get(workCentreId);
+      expect(deletedWorkCentre.is_active).toBe(0);
+    });
+
     test('should reject non-existent work centre', async () => {
       const response = await request(app)
         .delete('/api/work-centres/99999')
