@@ -197,51 +197,51 @@ class ERPConnection {
    */
   _validateAuthConfig(authType, authConfig) {
     switch (authType) {
-      case 'api_key':
-        if (!authConfig.api_key && !authConfig.api_key_header) {
-          throw new Error('api_key or api_key_header is required for API key authentication');
-        }
-        if (authConfig.api_key && typeof authConfig.api_key !== 'string') {
-          throw new Error('api_key must be a string');
-        }
-        if (authConfig.api_key_header && typeof authConfig.api_key_header !== 'string') {
-          throw new Error('api_key_header must be a string');
-        }
-        break;
+    case 'api_key':
+      if (!authConfig.api_key && !authConfig.api_key_header) {
+        throw new Error('api_key or api_key_header is required for API key authentication');
+      }
+      if (authConfig.api_key && typeof authConfig.api_key !== 'string') {
+        throw new Error('api_key must be a string');
+      }
+      if (authConfig.api_key_header && typeof authConfig.api_key_header !== 'string') {
+        throw new Error('api_key_header must be a string');
+      }
+      break;
 
-      case 'oauth2':
-        if (!authConfig.client_id || !authConfig.client_secret) {
-          throw new Error('client_id and client_secret are required for OAuth2 authentication');
-        }
-        if (typeof authConfig.client_id !== 'string' || typeof authConfig.client_secret !== 'string') {
-          throw new Error('client_id and client_secret must be strings');
-        }
-        break;
+    case 'oauth2':
+      if (!authConfig.client_id || !authConfig.client_secret) {
+        throw new Error('client_id and client_secret are required for OAuth2 authentication');
+      }
+      if (typeof authConfig.client_id !== 'string' || typeof authConfig.client_secret !== 'string') {
+        throw new Error('client_id and client_secret must be strings');
+      }
+      break;
 
-      case 'basic':
-        if (!authConfig.username || !authConfig.password) {
-          throw new Error('username and password are required for basic authentication');
-        }
-        if (typeof authConfig.username !== 'string' || typeof authConfig.password !== 'string') {
-          throw new Error('username and password must be strings');
-        }
-        break;
+    case 'basic':
+      if (!authConfig.username || !authConfig.password) {
+        throw new Error('username and password are required for basic authentication');
+      }
+      if (typeof authConfig.username !== 'string' || typeof authConfig.password !== 'string') {
+        throw new Error('username and password must be strings');
+      }
+      break;
 
-      case 'bearer':
-        if (!authConfig.token) {
-          throw new Error('token is required for bearer authentication');
-        }
-        if (typeof authConfig.token !== 'string') {
-          throw new Error('token must be a string');
-        }
-        break;
+    case 'bearer':
+      if (!authConfig.token) {
+        throw new Error('token is required for bearer authentication');
+      }
+      if (typeof authConfig.token !== 'string') {
+        throw new Error('token must be a string');
+      }
+      break;
 
-      case 'custom':
-        // Custom auth allows flexible configuration, just ensure it's an object
-        break;
+    case 'custom':
+      // Custom auth allows flexible configuration, just ensure it's an object
+      break;
 
-      default:
-        throw new Error(`Unsupported auth_type: ${authType}`);
+    default:
+      throw new Error(`Unsupported auth_type: ${authType}`);
     }
   }
 
@@ -601,7 +601,7 @@ class ERPConnection {
 
     try {
       // Test 1: Configuration validation
-      testResult.details.has_config = !!connection.connection_config && 
+      testResult.details.has_config = !!connection.connection_config &&
                                       Object.keys(connection.connection_config).length > 0;
 
       if (!testResult.details.has_config) {
@@ -627,7 +627,7 @@ class ERPConnection {
       }
 
       // Test 3: Import settings validation
-      testResult.details.has_import_settings = !!connection.import_settings && 
+      testResult.details.has_import_settings = !!connection.import_settings &&
                                                 Object.keys(connection.import_settings).length > 0;
 
       if (!testResult.details.has_import_settings) {
@@ -980,7 +980,7 @@ class ERPConnection {
    */
   createFromTemplate(erpSystemType, customConfig = {}) {
     const template = this.getConfigurationTemplate(erpSystemType);
-    
+
     // Deep merge custom config with template
     const mergedConfig = {
       ...template.connection_config,
