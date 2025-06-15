@@ -34,7 +34,7 @@ describe('User Settings Integration Tests', () => {
     }
     
     // Clean up and create test users
-    db.exec('DELETE FROM users WHERE username IN ("test-user", "test-admin")');
+    db.exec('DELETE FROM users WHERE username IN (\'test-user\', \'test-admin\')');
     
     const hashedPassword = require('bcryptjs').hashSync('password123', 10);
     

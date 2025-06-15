@@ -23,13 +23,15 @@ const config = require('./config/database');
 const { runMigrations } = require('../database/migrate');
 const errorHandler = require('./middleware/errorHandler');
 
-// Initialize database
-try {
-  runMigrations();
-  console.log('Database initialized successfully');
-} catch (error) {
-  console.error('Database initialization failed:', error);
-  process.exit(1);
+// Initialize database (skip migrations in test environment as they're handled in database.js)
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    runMigrations();
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    process.exit(1);
+  }
 }
 
 const app = express();

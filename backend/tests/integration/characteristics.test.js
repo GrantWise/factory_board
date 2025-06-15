@@ -47,7 +47,7 @@ describe('Job Characteristics Integration Tests', () => {
     }
     
     // Clean up and create test user
-    db.exec('DELETE FROM users WHERE username = "test-admin"');
+    db.exec('DELETE FROM users WHERE username = \'test-admin\'');
     
     const hashedPassword = require('bcryptjs').hashSync('password123', 10);
     const result = db.prepare(`

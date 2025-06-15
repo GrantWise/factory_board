@@ -9,7 +9,22 @@ const AuditLog = require('../models/AuditLog');
  * Now uses next(err) for error propagation to the centralized error handler.
  */
 class WorkCentresController {
-  // GET /api/work-centres
+  /**
+   * Get all work centres with optional inclusion of inactive centres
+   * @route GET /api/work-centres
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Query parameters
+   * @param {string} [req.query.include_inactive] - Include inactive work centres if 'true'
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with work centres array
+   * @example
+   * // Get only active work centres
+   * GET /api/work-centres
+   * 
+   * // Get all work centres including inactive
+   * GET /api/work-centres?include_inactive=true
+   */
   async getAllWorkCentres(req, res, next) {
     try {
       const includeInactive = req.query.include_inactive === 'true';
@@ -20,7 +35,17 @@ class WorkCentresController {
     }
   }
 
-  // GET /api/work-centres/:id
+  /**
+   * Get a single work centre by ID with associated machines and current job count
+   * @route GET /api/work-centres/:id
+   * @param {Object} req - Express request object
+   * @param {Object} req.params - URL parameters
+   * @param {string} req.params.id - Work centre ID
+   * @param {Object} res - Express response object
+   * @param {Function} next - Express next middleware function
+   * @returns {Promise<void>} JSON response with work centre details including machines
+   * @throws {404} Work centre not found
+   */
   async getWorkCentre(req, res, next) {
     try {
       const workCentre = WorkCentre.findById(req.params.id);
