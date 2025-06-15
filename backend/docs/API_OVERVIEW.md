@@ -1,420 +1,474 @@
-# Manufacturing Planning Board API Overview
+# Manufacturing Planning Board API Documentation
 
-## Introduction
+## Overview
 
-The Manufacturing Planning Board API provides comprehensive endpoints for managing manufacturing orders, work centres, users, and analytics in a manufacturing environment. The API follows REST principles and provides real-time updates via WebSocket connections.
+The Manufacturing Planning Board API provides a comprehensive REST interface for managing manufacturing orders, work centres, users, and analytics. Built with Node.js/Express and SQLite, it supports real-time updates via WebSocket connections.
 
 ## Base URL
-
-- **Development**: `http://localhost:3001/api`
-- **Production**: `https://your-domain.com/api`
+```
+http://localhost:3001/api
+```
 
 ## Authentication
 
-The API supports two authentication methods:
-
-### 1. JWT Token Authentication (Primary)
-
-Used for web application access and user-facing operations.
+All API endpoints (except login/register) require JWT authentication via the `Authorization` header:
 
 ```http
 Authorization: Bearer <jwt_token>
 ```
 
-**Getting a Token:**
-```http
-POST /api/auth/login
-Content-Type: application/json
+### Obtaining a Token
 
+**POST** `/auth/login`
+```json
 {
-  "username": "your_username",
-  "password": "your_password"
+  "username": "scheduler1",
+  "password": "password123"
 }
 ```
 
 **Response:**
 ```json
 {
-  "message": "Login successful",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": 1,
-    "username": "admin",
-    "role": "admin"
-  },
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-### 2. API Key Authentication (External Systems)
-
-Used for external system integration and automated processes.
-
-```http
-X-API-Key: <api_key>
-X-System-ID: <system_identifier>
-```
-
-## User Roles and Permissions
-
-| Role | Permissions |
-|------|-------------|
-| **admin** | Full access to all endpoints, user management, system configuration |
-| **scheduler** | Create, read, update manufacturing orders and work centres |
-| **viewer** | Read-only access to orders, work centres, and analytics |
-
-## Core Resources
-
-### 1. Authentication (`/api/auth`)
-
-- `POST /login` - User login
-- `POST /logout` - User logout
-- `POST /refresh` - Refresh access token
-- `GET /me` - Get current user profile
-- `PUT /profile` - Update user profile
-- `POST /change-password` - Change user password
-
-### 2. Manufacturing Orders (`/api/orders`)
-
-- `GET /orders` - List all orders with filtering
-- `GET /orders/:id` - Get specific order details
-- `POST /orders` - Create new order
-- `PUT /orders/:id` - Update order
-- `DELETE /orders/:id` - Delete order (soft delete if in progress)
-- `PUT /orders/:id/move` - Move order to different work centre
-- `POST /orders/import` - Bulk import orders
-- `POST /orders/reorder` - Reorder orders within work centre
-
-### 3. Work Centres (`/api/work-centres`)
-
-- `GET /work-centres` - List all work centres
-- `GET /work-centres/:id` - Get specific work centre
-- `POST /work-centres` - Create new work centre
-- `PUT /work-centres/:id` - Update work centre
-- `DELETE /work-centres/:id` - Delete work centre
-- `PUT /work-centres/reorder` - Reorder work centres
-
-### 4. Planning Board (`/api/planning-board`)
-
-- `GET /planning-board` - Get complete planning board data
-- `PUT /planning-board/move` - Move order via planning board
-- `GET /planning-board/stats` - Get planning board statistics
-
-### 5. Analytics (`/api/analytics`)
-
-- `GET /analytics/overview` - Overall system metrics
-- `GET /analytics/orders` - Order analytics
-- `GET /analytics/work-centres` - Work centre performance
-- `GET /analytics/utilization` - Capacity utilization metrics
-
-### 6. User Management (`/api/users`) [Admin Only]
-
-- `GET /users` - List all users
-- `GET /users/:id` - Get specific user
-- `POST /users` - Create new user
-- `PUT /users/:id` - Update user
-- `DELETE /users/:id` - Deactivate user
-
-### 7. API Keys (`/api/admin/api-keys`) [Admin Only]
-
-- `GET /api-keys` - List API keys
-- `POST /api-keys` - Create new API key
-- `PUT /api-keys/:id` - Update API key
-- `DELETE /api-keys/:id` - Revoke API key
-- `POST /api-keys/:id/rotate` - Rotate API key
-
-## Request/Response Format
-
-### Content Type
-All requests and responses use JSON format:
-```http
-Content-Type: application/json
-```
-
-### Standard Response Format
-
-**Success Response:**
-```json
-{
-  "message": "Operation successful",
-  "data": {
-    // Resource data
+    "username": "scheduler1",
+    "role": "scheduler",
+    "first_name": "Test",
+    "last_name": "Scheduler"
   }
 }
 ```
 
-**Error Response:**
+## Roles & Permissions
+
+- **admin**: Full access to all endpoints
+- **scheduler**: Can manage orders, work centres, and view analytics
+- **viewer**: Read-only access to orders and analytics
+
+## Manufacturing Orders
+
+### Get All Orders
+**GET** `/orders`
+
+**Query Parameters:**
+- `status`: Filter by status (`not_started`, `in_progress`, `complete`, `overdue`, `on_hold`, `cancelled`)
+- `priority`: Filter by priority (`low`, `medium`, `high`, `urgent`)
+- `work_centre_id`: Filter by work centre ID
+- `due_before`: Filter by due date (ISO date string)
+- `search`: Search in order number, stock code, or description
+
+**Example Request:**
+```http
+GET /api/orders?status=in_progress&priority=high
+Authorization: Bearer <token>
+```
+
+**Response:**
 ```json
 {
-  "error": "Human-readable error message",
-  "code": "MACHINE_READABLE_ERROR_CODE",
-  "details": {
-    // Optional error details
-  }
+  "orders": [
+    {
+      "id": 1,
+      "order_number": "MO-2024-001",
+      "stock_code": "WIDGET-001",
+      "description": "High Priority Widget Assembly",
+      "quantity_to_make": 100,
+      "quantity_completed": 25,
+      "current_operation": "Assembly",
+      "current_work_centre_id": 2,
+      "work_centre_name": "Assembly Line 1",
+      "status": "in_progress",
+      "priority": "high",
+      "due_date": "2024-12-31",
+      "start_date": "2024-12-01",
+      "created_by": 1,
+      "created_at": "2024-12-01T10:00:00.000Z",
+      "updated_at": "2024-12-15T14:30:00.000Z"
+    }
+  ],
+  "count": 1
 }
 ```
 
-## Filtering and Pagination
+### Get Single Order
+**GET** `/orders/:id`
 
-### Query Parameters
-
-Most list endpoints support filtering via query parameters:
-
-```http
-GET /api/orders?status=in_progress&priority=high&work_centre_id=5&limit=20&offset=0
-```
-
-**Common Parameters:**
-- `limit` - Number of items to return (default: 20, max: 100)
-- `offset` - Number of items to skip
-- `search` - Text search across relevant fields
-- `sort` - Sort field (prefix with `-` for descending)
-
-### Order Filtering
-- `status` - Filter by order status (not_started, in_progress, complete, overdue, on_hold, cancelled)
-- `priority` - Filter by priority (low, medium, high, urgent)
-- `work_centre_id` - Filter by current work centre
-- `due_before` - Filter by due date (ISO date string)
-- `created_after` - Filter by creation date
-
-### Work Centre Filtering
-- `include_inactive` - Include inactive work centres (true/false)
-- `has_capacity` - Filter by available capacity
-
-## Real-time Updates
-
-The API provides real-time updates via WebSocket connection on port 3001:
-
-```javascript
-const socket = io('http://localhost:3001');
-
-// Listen for order updates
-socket.on('orderMoved', (data) => {
-  console.log('Order moved:', data);
-});
-
-// Listen for planning board changes
-socket.on('planningBoardUpdate', (data) => {
-  console.log('Planning board updated:', data);
-});
-```
-
-## Rate Limiting
-
-The API implements rate limiting to prevent abuse:
-
-- **Global**: 1000 requests per 15 minutes
-- **Authentication**: 25 login attempts per 15 minutes
-- **API Keys**: 100 requests per 15 minutes per key
-- **Admin Operations**: 500 requests per 15 minutes
-
-Rate limit headers are included in responses:
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1640995200
-```
-
-## Error Handling
-
-### HTTP Status Codes
-
-- `200 OK` - Successful GET, PUT operations
-- `201 Created` - Successful POST operations
-- `400 Bad Request` - Invalid request data
-- `401 Unauthorized` - Authentication required
-- `403 Forbidden` - Access denied
-- `404 Not Found` - Resource not found
-- `409 Conflict` - Resource conflict (e.g., duplicate data)
-- `429 Too Many Requests` - Rate limit exceeded
-- `500 Internal Server Error` - Server error
-
-### Common Error Codes
-
-See [Error Handling Documentation](./ERROR_HANDLING.md) for complete error code reference.
-
-## Data Models
-
-### Manufacturing Order
+**Response:**
 ```json
 {
   "id": 1,
   "order_number": "MO-2024-001",
-  "stock_code": "PART-123",
-  "description": "Widget Assembly",
+  "stock_code": "WIDGET-001",
+  "description": "High Priority Widget Assembly",
   "quantity_to_make": 100,
   "quantity_completed": 25,
-  "current_operation": "Machining",
-  "current_work_centre_id": 3,
-  "work_centre_position": 2,
+  "current_operation": "Assembly",
+  "current_work_centre_id": 2,
+  "work_centre_name": "Assembly Line 1",
   "status": "in_progress",
   "priority": "high",
-  "due_date": "2024-12-31T23:59:59.000Z",
-  "start_date": "2024-01-15T08:00:00.000Z",
-  "completion_date": null,
+  "due_date": "2024-12-31",
+  "start_date": "2024-12-01",
   "created_by": 1,
-  "created_at": "2024-01-01T10:00:00.000Z",
-  "updated_at": "2024-01-15T14:30:00.000Z",
-  "manufacturing_steps": [
+  "created_at": "2024-12-01T10:00:00.000Z",
+  "updated_at": "2024-12-15T14:30:00.000Z",
+  "steps": [
     {
       "id": 1,
-      "step_number": 1,
-      "operation_name": "Cut to length",
+      "order_id": 1,
+      "operation": "Assembly",
       "work_centre_id": 2,
-      "status": "complete",
-      "planned_duration_minutes": 30,
-      "actual_duration_minutes": 28
+      "status": "in_progress",
+      "sequence": 1
     }
   ]
 }
 ```
 
-### Work Centre
+### Create Order
+**POST** `/orders`
+
+**Required Fields:**
+- `order_number`: Unique order identifier
+- `stock_code`: Product/part code
+- `quantity_to_make`: Number of items to produce
+- `current_work_centre_id`: Initial work centre ID
+
+**Request:**
 ```json
-{
-  "id": 1,
-  "name": "CNC Machining Centre 1",
-  "code": "CNC-001",
-  "description": "3-axis CNC mill for precision parts",
-  "capacity": 10,
-  "current_jobs": 7,
-  "display_order": 1,
-  "is_active": true,
-  "created_at": "2024-01-01T10:00:00.000Z",
-  "updated_at": "2024-01-01T10:00:00.000Z",
-  "machines": [
-    {
-      "id": 1,
-      "name": "Haas VF-2",
-      "code": "HAAS-VF2-001",
-      "description": "Vertical machining center",
-      "is_active": true
-    }
-  ]
-}
-```
-
-## Examples
-
-### Create a New Order
-
-```http
-POST /api/orders
-Authorization: Bearer <token>
-Content-Type: application/json
-
 {
   "order_number": "MO-2024-002",
-  "stock_code": "WIDGET-456",
-  "description": "Premium Widget Assembly",
+  "stock_code": "WIDGET-002",
+  "description": "Standard Widget Assembly",
   "quantity_to_make": 50,
+  "current_operation": "Cutting",
   "current_work_centre_id": 1,
+  "priority": "medium",
+  "due_date": "2024-12-31",
+  "start_date": "2024-12-01"
+}
+```
+
+**Response:**
+```json
+{
+  "id": 2,
+  "order_number": "MO-2024-002",
+  "stock_code": "WIDGET-002",
+  "description": "Standard Widget Assembly",
+  "quantity_to_make": 50,
+  "quantity_completed": 0,
+  "current_operation": "Cutting",
+  "current_work_centre_id": 1,
+  "status": "not_started",
+  "priority": "medium",
+  "due_date": "2024-12-31",
+  "start_date": "2024-12-01",
+  "created_by": 1,
+  "created_at": "2024-12-15T15:00:00.000Z",
+  "updated_at": "2024-12-15T15:00:00.000Z"
+}
+```
+
+### Update Order
+**PUT** `/orders/:id`
+
+**Request:**
+```json
+{
+  "description": "Updated Widget Assembly",
+  "quantity_to_make": 75,
   "priority": "high",
-  "due_date": "2024-06-30T23:59:59.000Z",
-  "manufacturing_steps": [
+  "status": "in_progress"
+}
+```
+
+### Delete Order
+**DELETE** `/orders/:id`
+
+**Response:**
+```json
+{
+  "message": "Order deleted successfully"
+}
+```
+
+## Work Centres
+
+### Get All Work Centres
+**GET** `/work-centres`
+
+**Response:**
+```json
+{
+  "workCentres": [
     {
-      "step_number": 1,
-      "operation_name": "Material prep",
+      "id": 1,
+      "name": "Cutting Station",
+      "code": "CUT-01",
+      "description": "Primary cutting operations",
+      "capacity": 3,
+      "current_jobs": 2,
+      "is_active": true,
+      "display_order": 1,
+      "created_at": "2024-12-01T10:00:00.000Z",
+      "updated_at": "2024-12-01T10:00:00.000Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### Create Work Centre
+**POST** `/work-centres`
+
+**Request:**
+```json
+{
+  "name": "Assembly Line 2",
+  "code": "ASM-02",
+  "description": "Secondary assembly operations",
+  "capacity": 5,
+  "display_order": 3
+}
+```
+
+## Planning Board
+
+### Get Planning Board Data
+**GET** `/planning-board`
+
+**Response:**
+```json
+{
+  "workCentres": [
+    {
+      "id": 1,
+      "name": "Cutting Station",
+      "code": "CUT-01",
+      "capacity": 3,
+      "current_jobs": 2,
+      "orders": [
+        {
+          "id": 1,
+          "order_number": "MO-2024-001",
+          "stock_code": "WIDGET-001",
+          "description": "High Priority Widget Assembly",
+          "quantity_to_make": 100,
+          "quantity_completed": 25,
+          "status": "in_progress",
+          "priority": "high",
+          "due_date": "2024-12-31"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_orders": 15,
+    "in_progress": 8,
+    "not_started": 5,
+    "overdue": 2
+  }
+}
+```
+
+### Move Order Between Work Centres
+**PUT** `/planning-board/move`
+
+**Request:**
+```json
+{
+  "order_id": 1,
+  "from_work_centre_id": 1,
+  "to_work_centre_id": 2,
+  "new_operation": "Assembly"
+}
+```
+
+## Analytics
+
+### Get Dashboard Statistics
+**GET** `/analytics/dashboard`
+
+**Response:**
+```json
+{
+  "summary": {
+    "total_orders": 150,
+    "in_progress": 45,
+    "completed_this_week": 23,
+    "overdue": 8,
+    "total_work_centres": 6,
+    "active_work_centres": 5,
+    "average_completion_time": 5.2
+  },
+  "status_breakdown": {
+    "not_started": 32,
+    "in_progress": 45,
+    "complete": 65,
+    "overdue": 8
+  },
+  "priority_breakdown": {
+    "low": 25,
+    "medium": 78,
+    "high": 35,
+    "urgent": 12
+  },
+  "work_centre_utilization": [
+    {
       "work_centre_id": 1,
-      "planned_duration_minutes": 45
-    },
-    {
-      "step_number": 2,
-      "operation_name": "Machining",
-      "work_centre_id": 2,
-      "planned_duration_minutes": 120
+      "name": "Cutting Station",
+      "capacity": 3,
+      "current_jobs": 2,
+      "utilization_percentage": 66.7
     }
   ]
 }
 ```
 
-### Move Order to Different Work Centre
+## User Management
 
-```http
-PUT /api/orders/123/move
-Authorization: Bearer <token>
-Content-Type: application/json
+### Get All Users (Admin Only)
+**GET** `/users`
 
+**Response:**
+```json
 {
-  "to_work_centre_id": 5,
-  "reason": "Capacity optimization",
-  "new_position": 2
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "first_name": "System",
+      "last_name": "Administrator",
+      "is_active": true,
+      "created_at": "2024-12-01T10:00:00.000Z"
+    }
+  ],
+  "count": 1
 }
 ```
 
-### Get Planning Board Data
+### Create User (Admin Only)
+**POST** `/users`
 
-```http
-GET /api/planning-board
-Authorization: Bearer <token>
+**Request:**
+```json
+{
+  "username": "newuser",
+  "email": "newuser@example.com",
+  "password": "securepassword",
+  "role": "scheduler",
+  "first_name": "New",
+  "last_name": "User"
+}
 ```
 
-Response includes complete board state with work centres, orders, and current locks:
+## Error Responses
+
+All errors follow a consistent format:
 
 ```json
 {
-  "workCentres": [...],
-  "orders": [...],
-  "ordersByWorkCentre": {...},
-  "activeLocks": {},
-  "summary": {
-    "totalWorkCentres": 8,
-    "totalOrders": 45,
-    "totalActiveOrders": 32,
-    "totalCompletedOrders": 13
-  },
-  "lastUpdated": "2024-01-15T14:30:00.000Z"
+  "error": "Error message",
+  "code": "ERROR_CODE",
+  "details": {
+    "field": "Additional error details (optional)"
+  }
 }
 ```
 
-## Testing
+### Common Error Codes
 
-### Health Check
-```http
-GET /health
-```
+- `VALIDATION_ERROR` (400): Request validation failed
+- `UNAUTHORIZED` (401): Authentication required
+- `INVALID_TOKEN` (401): JWT token invalid or expired
+- `INSUFFICIENT_PERMISSIONS` (403): User lacks required permissions
+- `NOT_FOUND` (404): Resource not found
+- `DUPLICATE_ORDER_NUMBER` (409): Order number already exists
+- `DUPLICATE_CODE` (409): Work centre code already exists
+- `RATE_LIMIT_EXCEEDED` (429): Too many requests
+- `INTERNAL_ERROR` (500): Server error
 
-Returns system status and can be used for monitoring:
+### Validation Error Example
+
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2024-01-15T14:30:00.000Z",
-  "environment": "development"
+  "error": "Validation failed",
+  "code": "VALIDATION_ERROR",
+  "details": {
+    "order_number": "Order number is required",
+    "quantity_to_make": "Quantity must be a positive number"
+  }
 }
 ```
 
-### API Documentation
-Interactive API documentation is available at:
-- **Swagger UI**: `http://localhost:3001/api/docs`
-- **JSON Schema**: `http://localhost:3001/api/docs.json`
+## Rate Limiting
+
+- **API Endpoints**: 100 requests per 15 minutes per IP
+- **Authentication Endpoints**: 5 requests per 15 minutes per IP
+
+## WebSocket Events
+
+Real-time updates are available via WebSocket connection:
+
+**Connection:** `ws://localhost:3001`
+
+**Events:**
+- `order_created`: New order added
+- `order_updated`: Order modified
+- `order_moved`: Order moved between work centres
+- `work_centre_updated`: Work centre modified
+
+**Example Event:**
+```json
+{
+  "event": "order_updated",
+  "data": {
+    "id": 1,
+    "order_number": "MO-2024-001",
+    "status": "complete",
+    "updated_by": "scheduler1"
+  }
+}
+```
+
+## API Keys (External Integration)
+
+### Create API Key (Admin Only)
+**POST** `/api-keys`
+
+**Request:**
+```json
+{
+  "system_id": "erp_system",
+  "description": "ERP System Integration",
+  "permissions": ["orders:read", "orders:write"],
+  "allowed_ips": ["192.168.1.100"]
+}
+```
+
+### Use API Key Authentication
+
+Instead of JWT token, include API key in header:
+```http
+X-API-Key: api_key_here
+```
 
 ## Best Practices
 
-### 1. Use Appropriate HTTP Methods
-- `GET` for retrieving data
-- `POST` for creating new resources
-- `PUT` for updating existing resources
-- `DELETE` for removing resources
-
-### 2. Include Request IDs
-For debugging, include a unique request ID in headers:
-```http
-X-Request-ID: abc123-def456-ghi789
-```
-
-### 3. Handle Rate Limits
-Implement exponential backoff when receiving 429 responses.
-
-### 4. Use HTTPS in Production
-Always use HTTPS for production deployments to protect sensitive data.
-
-### 5. Validate Input Data
-Client applications should validate data before sending to reduce unnecessary API calls.
+1. **Always handle errors**: Check response status codes and error messages
+2. **Use appropriate HTTP methods**: GET for reading, POST for creating, PUT for updating, DELETE for removing
+3. **Include pagination**: For large datasets, use query parameters for pagination
+4. **Cache responses**: Cache GET responses when appropriate to reduce server load
+5. **Handle rate limits**: Implement retry logic with exponential backoff
+6. **Validate input**: Client-side validation improves user experience
+7. **Use HTTPS**: Always use HTTPS in production environments
 
 ## Support
 
-For API support and questions:
-- Review this documentation and error handling guide
-- Check the interactive Swagger documentation
-- Examine the test files for usage examples
-- Contact the development team for integration assistance
+For API support, please refer to the error messages and status codes. All endpoints return detailed error information to help with debugging and integration.

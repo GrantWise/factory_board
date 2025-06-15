@@ -24,8 +24,8 @@ function getDatabase() {
           const migrationPath = path.join(migrationsDir, migrationFile);
           const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
           
-          // Replace CREATE TABLE with CREATE TABLE IF NOT EXISTS for test environments
-          const testMigrationSQL = migrationSQL.replace(/CREATE TABLE/g, 'CREATE TABLE IF NOT EXISTS');
+          // Replace CREATE TABLE with CREATE TABLE IF NOT EXISTS for test environments (but not if it already has IF NOT EXISTS)
+          const testMigrationSQL = migrationSQL.replace(/CREATE TABLE(?!\s+IF\s+NOT\s+EXISTS)/g, 'CREATE TABLE IF NOT EXISTS');
           
           // Split and execute statements, handling ALTER TABLE statements too
           const statements = testMigrationSQL.split(';').filter(stmt => stmt.trim());

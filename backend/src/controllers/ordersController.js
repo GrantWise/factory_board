@@ -1,3 +1,4 @@
+const OrderService = require('../services/orderService');
 const ManufacturingOrder = require('../models/ManufacturingOrder');
 const ManufacturingStep = require('../models/ManufacturingStep');
 const WorkCentre = require('../models/WorkCentre');
@@ -31,26 +32,14 @@ class OrdersController {
       const filters = {
         status: req.query.status,
         priority: req.query.priority,
-        work_centre_id: req.query.work_centre_id ? parseInt(req.query.work_centre_id) : undefined,
+        work_centre_id: req.query.work_centre_id,
         due_before: req.query.due_before,
         search: req.query.search
       };
 
-      // Remove undefined values
-      Object.keys(filters).forEach(key => {
-        if (filters[key] === undefined) {
-          delete filters[key];
-        }
-      });
-
-      const orders = ManufacturingOrder.findAll(filters);
-
-      res.json({
-        orders,
-        count: orders.length
-      });
+      const result = OrderService.getAllOrders(filters);
+      res.json(result);
     } catch (error) {
-      // Pass error to centralized error handler
       next({ status: 500, code: 'FETCH_FAILED', message: error.message });
     }
   }
@@ -67,22 +56,14 @@ class OrdersController {
    */
   async getOrder(req, res, next) {
     try {
-      const order = ManufacturingOrder.findById(req.params.id);
-
-      if (!order) {
-        return next({
-          status: 404,
-          code: 'NOT_FOUND',
-          message: 'Order not found'
-        });
-      }
-
-      res.json({
-        order
-      });
+      const order = OrderService.getOrderById(req.params.id);
+      res.json({ order });
     } catch (error) {
-      // Pass error to centralized error handler
-      next({ status: 500, code: 'FETCH_FAILED', message: error.message });
+      if (error.status) {
+        next(error);
+      } else {
+        next({ status: 500, code: 'FETCH_FAILED', message: error.message });
+      }
     }
   }
 
@@ -107,59 +88,22 @@ class OrdersController {
    */
   async createOrder(req, res, next) {
     try {
-      const orderData = req.body;
-      orderData.created_by = req.user.id;
-
-      // Check if order number already exists
-      if (ManufacturingOrder.orderNumberExists(orderData.order_number)) {
-        return next({
-          status: 409,
-          code: 'DUPLICATE_ORDER_NUMBER',
-          message: 'Order number already exists'
-        });
-      }
-
-      // Validate work centre if provided
-      if (orderData.current_work_centre_id) {
-        const workCentre = WorkCentre.findById(orderData.current_work_centre_id);
-        if (!workCentre) {
-          return next({
-            status: 400,
-            code: 'INVALID_WORK_CENTRE',
-            message: 'Invalid work centre ID'
-          });
-        }
-      }
-
-      const order = ManufacturingOrder.create(orderData);
-
-      // Create manufacturing steps if provided
-      if (orderData.manufacturing_steps && orderData.manufacturing_steps.length > 0) {
-        ManufacturingStep.createStepsForOrder(order.id, orderData.manufacturing_steps);
-        // Refresh order data to include steps
-        const orderWithSteps = ManufacturingOrder.findById(order.id);
-        order.manufacturingSteps = orderWithSteps.manufacturingSteps;
-      }
-
-      // Log the creation
-      AuditLog.create({
-        event_type: 'order_created',
-        order_id: order.id,
-        user_id: req.user.id,
-        event_data: {
-          order_number: order.orderNumber,
-          stock_code: order.stockCode,
-          created_by: req.user.username
-        }
-      });
+      const order = await OrderService.createOrder(
+        req.body, 
+        req.user.id, 
+        req.user.username
+      );
 
       res.status(201).json({
         message: 'Order created successfully',
         order
       });
     } catch (error) {
-      // Pass error to centralized error handler
-      next({ status: 400, code: 'CREATION_FAILED', message: error.message });
+      if (error.status) {
+        next(error);
+      } else {
+        next({ status: 400, code: 'CREATION_FAILED', message: error.message });
+      }
     }
   }
 
@@ -181,122 +125,41 @@ class OrdersController {
    */
   async updateOrder(req, res, next) {
     try {
-      const orderId = req.params.id;
-      const updates = req.body;
-
-      const existingOrder = ManufacturingOrder.findById(orderId);
-      if (!existingOrder) {
-        return next({
-          status: 404,
-          code: 'NOT_FOUND',
-          message: 'Order not found'
-        });
-      }
-
-      // Check for order number conflicts
-      if (updates.order_number && ManufacturingOrder.orderNumberExists(updates.order_number, orderId)) {
-        return next({
-          status: 409,
-          code: 'DUPLICATE_ORDER_NUMBER',
-          message: 'Order number already exists'
-        });
-      }
-
-      // Validate work centre if being updated
-      if (updates.current_work_centre_id) {
-        const workCentre = WorkCentre.findById(updates.current_work_centre_id);
-        if (!workCentre) {
-          return next({
-            status: 400,
-            code: 'INVALID_WORK_CENTRE',
-            message: 'Invalid work centre ID'
-          });
-        }
-      }
-
-      // Log status changes
-      if (updates.status && updates.status !== existingOrder.status) {
-        AuditLog.logOrderStatusChange(
-          orderId,
-          existingOrder.status,
-          updates.status,
-          req.user.id
-        );
-      }
-
-      const order = ManufacturingOrder.update(orderId, updates);
-
-      // Log the update
-      AuditLog.create({
-        event_type: 'order_updated',
-        order_id: orderId,
-        user_id: req.user.id,
-        event_data: {
-          order_number: order.orderNumber,
-          updated_fields: Object.keys(updates),
-          updated_by: req.user.username
-        }
-      });
+      const order = await OrderService.updateOrder(
+        req.params.id,
+        req.body,
+        req.user.id,
+        req.user.username
+      );
 
       res.json({
         message: 'Order updated successfully',
         order
       });
     } catch (error) {
-      next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
+      if (error.status) {
+        next(error);
+      } else {
+        next({ status: 400, code: 'UPDATE_FAILED', message: error.message });
+      }
     }
   }
 
-  // DELETE /api/orders/:id
   async deleteOrder(req, res, next) {
     try {
-      const orderId = req.params.id;
+      const result = await OrderService.deleteOrder(
+        req.params.id,
+        req.user.id,
+        req.user.username
+      );
 
-      const order = ManufacturingOrder.findById(orderId);
-      if (!order) {
-        return next({
-          status: 404,
-          code: 'NOT_FOUND',
-          message: 'Order not found'
-        });
-      }
-
-      // Business rule: Only hard delete if not_started, otherwise soft delete (set status to cancelled)
-      if (order.status === 'not_started') {
-        ManufacturingOrder.delete(orderId);
-        // Log the deletion
-        AuditLog.create({
-          event_type: 'order_deleted',
-          order_id: orderId,
-          user_id: req.user.id,
-          event_data: {
-            order_number: order.order_number,
-            stock_code: order.stock_code,
-            deleted_by: req.user.username
-          }
-        });
-        return res.json({
-          message: 'Order deleted successfully'
-        });
-      } else {
-        // Soft delete: set status to cancelled
-        ManufacturingOrder.update(orderId, { status: 'cancelled' });
-        AuditLog.create({
-          event_type: 'order_soft_deleted',
-          order_id: orderId,
-          user_id: req.user.id,
-          event_data: {
-            order_number: order.order_number,
-            stock_code: order.stock_code,
-            soft_deleted_by: req.user.username
-          }
-        });
-        return res.json({
-          message: 'Order was in progress or completed and has been cancelled (soft deleted)'
-        });
-      }
+      res.json(result);
     } catch (error) {
-      next({ status: 500, code: 'DELETE_FAILED', message: error.message });
+      if (error.status) {
+        next(error);
+      } else {
+        next({ status: 500, code: 'DELETE_FAILED', message: error.message });
+      }
     }
   }
 
